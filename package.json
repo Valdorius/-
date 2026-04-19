@@ -1,0 +1,36 @@
+{
+  "name": "voxel-arena",
+  "version": "1.0.0",
+  "description": "Voxel Arena Game",
+  "main": "electron-main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win --x64",
+    "build-linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.voxelarena.game",
+    "productName": "Voxel Arena",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron-main.js",
+      "index.html",
+      "src/**/*",
+      "assets/**/*",
+      "favicon.ico"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "favicon.ico"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}

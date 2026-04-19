@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Voxel Arena (modular)</title>
+  <style>
+    html,body{margin:0;height:100%;overflow:hidden;background:#06080d;color:#dfe9ff;font:14px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial;touch-action:none}
+    #c{position:fixed;inset:0;display:block;z-index:0;touch-action:none}
+    #hud{position:fixed;left:0;right:0;bottom:0;z-index:5;pointer-events:none;padding:10px 12px}
+    #bars{max-width:860px;margin:0 auto}
+    .bar{height:14px;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);overflow:hidden}
+    .fill{height:100%;width:50%}
+    #hpFill{background:linear-gradient(90deg,#c31919,#ff4c4c)}
+    #xpFill{background:linear-gradient(90deg,#b08a00,#ffd84a)}
+    #top{position:fixed;left:12px;top:12px;z-index:6;padding:8px 10px;border-radius:12px;
+         background:rgba(10,14,22,.55);border:1px solid rgba(255,255,255,.12);backdrop-filter:none}
+    #top b{color:#fff}
+    #hint{position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:6;
+          padding:8px 10px;border-radius:12px;background:rgba(10,14,22,.55);
+          border:1px solid rgba(255,255,255,.12);max-width:min(920px,92vw);text-align:center}
+    #hint kbd{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);padding:2px 6px;border-radius:6px}
+    #musicBtn{
+      position:fixed;right:12px;top:12px;z-index:9;padding:8px 10px;border-radius:10px;
+      background:rgba(10,14,22,.55);border:1px solid rgba(255,255,255,.12);color:#dfe9ff;cursor:pointer
+    }
+    #pick{
+      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;
+      background:radial-gradient(80% 80% at 50% 30%, rgba(40,60,110,.35), rgba(0,0,0,.85));
+    }
+    #pick .panel{
+      width:min(880px,92vw);border-radius:18px;padding:16px 16px 14px;
+      background:rgba(10,14,22,.72);border:1px solid rgba(255,255,255,.14);
+    }
+    #pick h2{margin:0 0 10px 0;font-size:18px}
+    #cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .card{padding:12px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);cursor:pointer}
+    .card:hover{background:rgba(255,255,255,.08)}
+    .card.selected{outline:2px solid rgba(255,255,255,.55); background:rgba(255,255,255,.10)}
+    .card b{display:block;margin-bottom:6px}
+    .muted{opacity:.8}
+  
+    /* Threat / audio HUD */
+    #audiohud{position:fixed;left:0;right:0;top:56px;height:46px;z-index:8;pointer-events:none}
+    .ping{position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:999px;
+          background:rgba(180,220,255,.85);box-shadow:0 0 12px rgba(120,190,255,.9);opacity:1}
+    .ping.ranged{background:rgba(90,190,255,.95);box-shadow:0 0 14px rgba(70,170,255,1)}
+    .ping.hit{background:rgba(255,120,120,.95);box-shadow:0 0 16px rgba(255,90,90,1)}
+    .ping.big{width:14px;height:14px}
+    /* Modal choice overlay (perks / boss loot) */
+    #modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:30;
+           background:radial-gradient(80% 80% at 50% 30%, rgba(60,90,160,.25), rgba(0,0,0,.88));}
+    #modal .panel{width:min(980px,94vw);border-radius:18px;padding:16px 16px 14px;
+      background:rgba(10,14,22,.80);border:1px solid rgba(255,255,255,.14);}
+    #modal h2{margin:0 0 10px 0;font-size:18px}
+    #modal .sub{opacity:.82;margin:0 0 10px 0}
+    #modalCards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    #modal .card{pointer-events:auto}
+
+  
+    body::before{
+      content:"";
+      position:fixed; inset:-20%;
+      background:
+        radial-gradient(60% 40% at 20% 30%, rgba(0,160,255,0.18), transparent 60%),
+        radial-gradient(50% 50% at 80% 70%, rgba(255,80,120,0.18), transparent 60%),
+        linear-gradient(120deg, #0a0f1f, #05070e 40%, #0b1024);
+      animation: arenaFlow 18s linear infinite;
+      filter: blur(20px) saturate(120%);
+      z-index:-1;
+    }
+    @keyframes arenaFlow{
+      0%{transform:translate(0,0) rotate(0deg)}
+      50%{transform:translate(5%, -3%) rotate(1deg)}
+      100%{transform:translate(0,0) rotate(0deg)}
+    }
+    body::after{
+      content:"";
+      position:fixed; inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(120% 120% at 50% 50%, transparent 60%, rgba(0,0,0,0.55) 100%);
+      z-index:1;
+    }
+    #c{ box-shadow: inset 0 0 120px rgba(0,180,255,.25); }
+
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="top">
+    <div><b>LV</b> <span id="lv">1</span>  •  <b>Wave</b> <span id="wave">1</span>  •  <b>Kills</b> <span id="kills">0</span></div>
+    <div class="muted"><b>Weapon</b> <span id="weaponName">—</span></div>
+  </div>
+
+  <div id="hint">
+    Кликни по экрану чтобы захватить мышь. <kbd>WASD</kbd> движение, <kbd>Shift</kbd> бег, <kbd>Space</kbd> прыжок.
+    <b>Меч</b>: ЛКМ. <b>Лук</b>: удерживай ЛКМ → отпусти. <b>Посох</b>: удерживай ЛКМ.
+  </div>
+
+  <div id="audiohud"></div>
+
+  <div id="modal">
+    <div class="panel">
+      <h2 id="modalTitle">Выбор</h2>
+      <div id="modalSub" class="sub"></div>
+      <div id="modalCards"></div>
+      <div id="modalHint" class="muted" style="margin-top:10px;display:none"></div>
+    </div>
+  </div>
+
+  <button id="musicBtn">🎵 Музыка: OFF</button>
+
+  <div id="hud">
+    <div id="bars">
+      <div class="bar" style="margin-bottom:8px"><div id="xpFill" class="fill"></div></div>
+      <div class="bar"><div id="hpFill" class="fill"></div></div>
+    </div>
+  </div>
+
+  <div id="pick">
+    <div class="panel">
+      <h2>Выбери оружие</h2>
+      <div id="cards"></div>
+      <div class="muted" style="margin-top:10px">Можно поменять позже (сделаем дроп/смену после босса).</div>
+    </div>
+  </div>
+
+  <!-- three.js как ES Module (без сборщика) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    }
+  }
+  </script>
+
+  
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
