@@ -63,6 +63,11 @@ let cd = 0,
   let comboQueued = false;
   let prevMouseDown = false;
   let spearHitSet = new Set();
+  let slashArcSpawned = false;
+
+  // camera micro-impulse / tilt for combat impact
+  let camImpulseZ = 0; // roll
+  let camImpulseX = 0; // pitch
 
   // spear hit-streak (damage reward for consecutive hits)
   let spearStreak = 0;
@@ -563,150 +568,172 @@ let cd = 0,
     });
   }
 
+  function triggerCamImpulse(step) {
+    if (step === 0) {
+      // Horizontal cut: subtle leftward roll impulse
+      camImpulseZ = -0.015;
+      camImpulseX = 0.004;
+    } else if (step === 1) {
+      // Diagonal cut: subtle rightward roll and slight upward pitch
+      camImpulseZ = 0.013;
+      camImpulseX = -0.007;
+    } else {
+      // Overhead slam: crisp downward pitch nod
+      camImpulseX = 0.024;
+      camImpulseZ = 0.002;
+    }
+  }
+
   const spearCombos = [
     // 1. Широкий рубящий свип справа налево (Horizontal Cleave)
-    { dur: 0.38, dmgMul: 1.10, arc: 1.45, rangeMul: 1.25, active: [0.18, 0.55],
+    // Хват/рукоять заякорена у правого бедра (x держится в районе +0.26..0.34)
+    // Клинок на длинном 2.5м плече рычага рассекает экран справа налево
+    { dur: 0.38, dmgMul: 1.10, arc: 1.45, rangeMul: 1.25, active: [0.20, 0.56],
       anim(p) {
         if (p < 0.22) {
-          // Замах назад вправо с раскрытием широкой плоскости клинка
+          // Замах: отвод глефы назад вправо, лезвие взводится над правым плечом
           const t = p / 0.22;
-          const k = t * t;
-          hand.position.set(
-            baseHandPos.x + 0.14 * k,
-            baseHandPos.y + 0.05 * k,
-            baseHandPos.z + 0.10 * k
-          );
-          hand.rotation.set(
-            baseHandRot.x - 0.22 * k,
-            baseHandRot.y + 0.52 * k,
-            baseHandRot.z - 0.28 * k
-          );
-        } else if (p < 0.62) {
-          // Мощный рассекающий пронос клинка через весь экран налево
-          const t = (p - 0.22) / 0.40;
           const k = t * t * (3 - 2 * t);
-          const slashForward = Math.sin(t * Math.PI) * 0.26;
           hand.position.set(
-            baseHandPos.x + 0.14 - 0.58 * k,
-            baseHandPos.y + 0.05 - 0.12 * Math.sin(t * Math.PI),
-            baseHandPos.z + 0.10 - slashForward
+            baseHandPos.x + 0.04 * k,
+            baseHandPos.y + 0.02 * k,
+            baseHandPos.z + 0.06 * k
           );
           hand.rotation.set(
-            baseHandRot.x - 0.22 + 0.45 * k,
-            baseHandRot.y + 0.52 - 1.75 * k,
-            baseHandRot.z - 0.28 - 0.30 * Math.sin(t * Math.PI)
+            baseHandRot.x - 0.18 * k,
+            baseHandRot.y + 0.42 * k,
+            baseHandRot.z - 0.22 * k
+          );
+        } else if (p < 0.60) {
+          // Рубящий пронос: руки удерживают рычаг у бедра, клинок рассекает экран
+          const t = (p - 0.22) / 0.38;
+          const k = t * t * (3 - 2 * t);
+          const slashForward = Math.sin(t * Math.PI) * 0.12;
+          hand.position.set(
+            baseHandPos.x + 0.04 - 0.08 * k,
+            baseHandPos.y + 0.02 - 0.04 * Math.sin(t * Math.PI),
+            baseHandPos.z + 0.06 - slashForward
+          );
+          hand.rotation.set(
+            baseHandRot.x - 0.18 + 0.30 * k,
+            baseHandRot.y + 0.42 - 1.28 * k,
+            baseHandRot.z - 0.22 + 0.38 * k
           );
         } else {
-          // Плавный выход в боевую стойку слева
-          const t = (p - 0.62) / 0.38;
+          // Плавный выход из проноса в исходную стойку
+          const t = (p - 0.60) / 0.40;
           const k = 1 - t * (2 - t);
           hand.position.set(
-            baseHandPos.x - 0.44 * k,
+            baseHandPos.x - 0.04 * k,
             baseHandPos.y,
             baseHandPos.z
           );
           hand.rotation.set(
-            baseHandRot.x + 0.23 * k,
-            baseHandRot.y - 1.23 * k,
-            baseHandRot.z - 0.10 * k
+            baseHandRot.x + 0.12 * k,
+            baseHandRot.y - 0.86 * k,
+            baseHandRot.z + 0.16 * k
           );
         }
       }
     },
 
     // 2. Обратный восходящий диагональный срез (Upward Diagonal Slash)
-    { dur: 0.36, dmgMul: 1.15, arc: 1.35, rangeMul: 1.20, active: [0.16, 0.52],
+    // Хват заякорен внизу, лезвие снизу-слева взмывает в правый верхний угол
+    { dur: 0.36, dmgMul: 1.15, arc: 1.35, rangeMul: 1.20, active: [0.18, 0.54],
       anim(p) {
         if (p < 0.18) {
-          // Краткий замах снизу-слева
+          // Краткий взвод снизу-слева
           const t = p / 0.18;
+          const k = t * t * (3 - 2 * t);
           hand.position.set(
-            baseHandPos.x - 0.32 - 0.08 * t,
-            baseHandPos.y - 0.12 * t,
-            baseHandPos.z + 0.08 * t
+            baseHandPos.x - 0.05 * k,
+            baseHandPos.y - 0.06 * k,
+            baseHandPos.z + 0.04 * k
           );
           hand.rotation.set(
-            baseHandRot.x + 0.15 * t,
-            baseHandRot.y - 1.10 - 0.15 * t,
-            baseHandRot.z + 0.38 * t
+            baseHandRot.x + 0.25 * k,
+            baseHandRot.y - 0.65 * k,
+            baseHandRot.z + 0.30 * k
           );
         } else if (p < 0.58) {
-          // Восходящий рубящий срез снизу-слева в правый верхний сектор
+          // Восходящий рубящий срез: клинок взмывает снизу-слева в правый верхний сектор
           const t = (p - 0.18) / 0.40;
           const k = t * t * (3 - 2 * t);
-          const slashForward = Math.sin(t * Math.PI) * 0.22;
+          const slashForward = Math.sin(t * Math.PI) * 0.12;
           hand.position.set(
-            baseHandPos.x - 0.40 + 0.72 * k,
-            baseHandPos.y - 0.12 + 0.32 * k,
-            baseHandPos.z + 0.08 - slashForward
+            baseHandPos.x - 0.05 + 0.09 * k,
+            baseHandPos.y - 0.06 + 0.08 * k,
+            baseHandPos.z + 0.04 - slashForward
           );
           hand.rotation.set(
-            baseHandRot.x + 0.15 - 0.38 * k,
-            baseHandRot.y - 1.25 + 2.05 * k,
-            baseHandRot.z + 0.38 - 0.55 * k
+            baseHandRot.x + 0.25 - 0.52 * k,
+            baseHandRot.y - 0.65 + 1.25 * k,
+            baseHandRot.z + 0.30 - 0.55 * k
           );
         } else {
-          // Возврат к стойке
+          // Возврат к боевой стойке
           const t = (p - 0.58) / 0.42;
           const k = 1 - t * (2 - t);
           hand.position.set(
-            baseHandPos.x + 0.32 * k,
-            baseHandPos.y + 0.20 * k,
+            baseHandPos.x + 0.04 * k,
+            baseHandPos.y + 0.02 * k,
             baseHandPos.z
           );
           hand.rotation.set(
-            baseHandRot.x - 0.23 * k,
-            baseHandRot.y + 0.80 * k,
-            baseHandRot.z - 0.17 * k
+            baseHandRot.x - 0.27 * k,
+            baseHandRot.y + 0.60 * k,
+            baseHandRot.z - 0.25 * k
           );
         }
       }
     },
 
     // 3. Сокрушительный вертикальный удар сверху вниз (Heavy Overhead Slam Finisher)
-    { dur: 0.46, dmgMul: 1.65, arc: 1.15, rangeMul: 1.35, active: [0.26, 0.58],
+    // Подъём глефы обеими руками и мощное обрушение по центральной вертикали
+    { dur: 0.46, dmgMul: 1.65, arc: 1.15, rangeMul: 1.35, active: [0.24, 0.58],
       anim(p) {
-        if (p < 0.28) {
-          // Подъём глефы высоко над головой
-          const t = p / 0.28;
-          const k = t * t;
+        if (p < 0.26) {
+          // Замах: подъём глефы вертикально над головой
+          const t = p / 0.26;
+          const k = t * t * (3 - 2 * t);
           hand.position.set(
-            baseHandPos.x - 0.20 * k,
-            baseHandPos.y + 0.42 * k,
-            baseHandPos.z + 0.12 * k
+            baseHandPos.x + 0.02 * k,
+            baseHandPos.y + 0.16 * k,
+            baseHandPos.z + 0.08 * k
           );
           hand.rotation.set(
-            baseHandRot.x - 0.85 * k,
-            baseHandRot.y + 0.12 * k,
-            baseHandRot.z + 0.18 * k
+            baseHandRot.x - 0.72 * k,
+            baseHandRot.y + 0.06 * k,
+            baseHandRot.z + 0.08 * k
           );
-        } else if (p < 0.62) {
-          // Сокрушительное обрушение вертикально вниз
-          const t = (p - 0.28) / 0.34;
-          const k = t * t;
+        } else if (p < 0.60) {
+          // Мощное обрушение сверху вниз: руки тянут древко вниз с ускорением
+          const t = (p - 0.26) / 0.34;
+          const k = t * t; // ускорение свободного падения + сила рук
           hand.position.set(
-            baseHandPos.x - 0.20 + 0.10 * k,
-            baseHandPos.y + 0.42 - 0.70 * k,
-            baseHandPos.z + 0.12 - 0.38 * k
+            baseHandPos.x + 0.02 - 0.04 * k,
+            baseHandPos.y + 0.16 - 0.28 * k,
+            baseHandPos.z + 0.08 - 0.16 * k
           );
           hand.rotation.set(
-            baseHandRot.x - 0.85 + 1.85 * k,
-            baseHandRot.y + 0.12 - 0.18 * k,
-            baseHandRot.z + 0.18 - 0.22 * k
+            baseHandRot.x - 0.72 + 1.48 * k,
+            baseHandRot.y + 0.06 - 0.12 * k,
+            baseHandRot.z + 0.08 - 0.14 * k
           );
         } else {
-          // Отскок и возврат в стойку
-          const t = (p - 0.62) / 0.38;
+          // Отдача от удара (микро-отскок) и возврат в стойку
+          const t = (p - 0.60) / 0.40;
           const k = 1 - t * (2 - t);
+          const bounce = Math.sin(t * Math.PI) * 0.03;
           hand.position.set(
-            baseHandPos.x - 0.10 * k,
-            baseHandPos.y - 0.28 * k,
-            baseHandPos.z - 0.26 * k
+            baseHandPos.x - 0.02 * k,
+            baseHandPos.y - 0.12 * k + bounce,
+            baseHandPos.z - 0.08 * k
           );
           hand.rotation.set(
-            baseHandRot.x + 1.00 * k,
+            baseHandRot.x + 0.76 * k,
             baseHandRot.y - 0.06 * k,
-            baseHandRot.z - 0.04 * k
+            baseHandRot.z - 0.06 * k
           );
         }
       }
@@ -722,20 +749,12 @@ let cd = 0,
     cd = 0;
     comboGrace = 0.80;
     comboQueued = false;
+    slashArcSpawned = false;
     spearHitSet = new Set();
     // consume one-shot radius boost on swing start
     const st = getStats();
     if (st && (st.spearNextRadiusT || 0) > 0) st.spearNextRadiusT = 0;
     spearStreak = 0; spearStreakT = 0;
-
-    // Trigger runic slash arc in the air following the blade cut
-    if (fx?.addSlashArc && camera) {
-      const origin = new THREE.Vector3();
-      camera.getWorldPosition(origin);
-      const dir = new THREE.Vector3();
-      camera.getWorldDirection(dir).normalize();
-      fx.addSlashArc({ origin, dir, comboStep: stepIdx, color: 0x00f5ff });
-    }
   }
 
   function equip(w) {
@@ -746,6 +765,13 @@ let cd = 0,
     cd = 0; swingT = 0; castT = 0; bowCharge = 0; bowCharging = false;
     comboStep = 0; comboNextStep = 0; comboGrace = 0; comboQueued = false;
     spearHitSet = new Set();
+    slashArcSpawned = false;
+    camImpulseZ = 0;
+    camImpulseX = 0;
+    if (camera) {
+      camera.rotation.z = 0;
+      camera.rotation.x = 0;
+    }
     spearStreak = 0; spearStreakT = 0;
 
     buildModel(w);
@@ -775,6 +801,19 @@ let cd = 0,
         const p = 1 - swingT / swingMax;
         const s = spearCombos[comboStep] || spearCombos[0];
         s.anim(p);
+
+        // Spawn runic slash arc & camera impulse at the peak of the forward cut!
+        if (!slashArcSpawned && p >= s.active[0]) {
+          slashArcSpawned = true;
+          if (fx?.addSlashArc && camera) {
+            const origin = new THREE.Vector3();
+            camera.getWorldPosition(origin);
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir).normalize();
+            fx.addSlashArc({ origin, dir, comboStep, color: 0x00f5ff });
+          }
+          triggerCamImpulse(comboStep);
+        }
 
         if (justPressed && p > 0.45 && p < 0.95) comboQueued = true;
 
@@ -849,6 +888,14 @@ let cd = 0,
           fireStaff();
         }
       }
+    }
+
+    // Smooth camera tilt decay
+    if (camera) {
+      camImpulseZ *= Math.exp(-dt * 22.0);
+      camImpulseX *= Math.exp(-dt * 22.0);
+      camera.rotation.z = camImpulseZ;
+      camera.rotation.x = camImpulseX;
     }
   }
 
