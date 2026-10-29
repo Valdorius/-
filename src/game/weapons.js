@@ -44,130 +44,6 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
     muzzle: null
   };
 
-  // === DYNAMIC BLADE MOTION RIBBON TRAIL ===
-  let spearBladeTip = null;
-  let spearBladeBase = null;
-
-  const MAX_TRAIL_SAMPLES = 24;
-  const trailSamples = [];
-  const TRAIL_LIFETIME = 0.14;
-
-  const trailPositions = new Float32Array(MAX_TRAIL_SAMPLES * 2 * 3);
-  const trailColors = new Float32Array(MAX_TRAIL_SAMPLES * 2 * 3);
-  const trailIndices = new Uint16Array((MAX_TRAIL_SAMPLES - 1) * 6);
-
-  let tIdx = 0;
-  for (let i = 0; i < MAX_TRAIL_SAMPLES - 1; i++) {
-    const b = i * 2;
-    trailIndices[tIdx++] = b;
-    trailIndices[tIdx++] = b + 1;
-    trailIndices[tIdx++] = b + 2;
-    trailIndices[tIdx++] = b + 1;
-    trailIndices[tIdx++] = b + 3;
-    trailIndices[tIdx++] = b + 2;
-  }
-
-  const trailGeo = new THREE.BufferGeometry();
-  trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
-  trailGeo.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
-  trailGeo.setIndex(new THREE.BufferAttribute(trailIndices, 1));
-  trailGeo.setDrawRange(0, 0);
-
-  const trailMat = new THREE.MeshBasicMaterial({
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.92,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending
-  });
-
-  const trailMesh = new THREE.Mesh(trailGeo, trailMat);
-  trailMesh.frustumCulled = false;
-  camera.add(trailMesh);
-
-  const _vTipWorld = new THREE.Vector3();
-  const _vBaseWorld = new THREE.Vector3();
-
-  function updateBladeTrail(dt) {
-    if (!spearBladeTip || !spearBladeBase || weapon !== "spear") {
-      trailSamples.length = 0;
-      trailGeo.setDrawRange(0, 0);
-      return;
-    }
-
-    // Age existing samples
-    for (let i = trailSamples.length - 1; i >= 0; i--) {
-      trailSamples[i].age += dt;
-      if (trailSamples[i].age >= trailSamples[i].life) {
-        trailSamples.splice(i, 1);
-      }
-    }
-
-    // Add new sample during active cutting phase
-    const s = spearCombos[comboStep] || spearCombos[0];
-    const p = swingMax > 0 ? (1 - swingT / swingMax) : 0;
-    const isCutting = swingT > 0 && p >= s.active[0] && p <= s.active[1];
-
-    if (isCutting) {
-      spearBladeTip.getWorldPosition(_vTipWorld);
-      spearBladeBase.getWorldPosition(_vBaseWorld);
-      camera.worldToLocal(_vTipWorld);
-      camera.worldToLocal(_vBaseWorld);
-
-      trailSamples.unshift({
-        tip: _vTipWorld.clone(),
-        base: _vBaseWorld.clone(),
-        age: 0,
-        life: TRAIL_LIFETIME
-      });
-
-      if (trailSamples.length > MAX_TRAIL_SAMPLES) {
-        trailSamples.length = MAX_TRAIL_SAMPLES;
-      }
-    }
-
-    const count = trailSamples.length;
-    if (count < 2) {
-      trailGeo.setDrawRange(0, 0);
-      return;
-    }
-
-    let posIdx = 0;
-    let colIdx = 0;
-
-    for (let i = 0; i < count; i++) {
-      const sample = trailSamples[i];
-      const k = clamp(1.0 - (sample.age / sample.life), 0, 1);
-      const intensity = Math.pow(k, 1.15);
-
-      // Tip vertex (outer edge of blade)
-      trailPositions[posIdx++] = sample.tip.x;
-      trailPositions[posIdx++] = sample.tip.y;
-      trailPositions[posIdx++] = sample.tip.z;
-
-      // Base vertex (inner root of blade)
-      trailPositions[posIdx++] = sample.base.x;
-      trailPositions[posIdx++] = sample.base.y;
-      trailPositions[posIdx++] = sample.base.z;
-
-      // Glowing white-cyan cutting edge
-      trailColors[colIdx++] = 0.92 * intensity;
-      trailColors[colIdx++] = 1.00 * intensity;
-      trailColors[colIdx++] = 1.00 * intensity;
-
-      // Ethereal cyan fade
-      trailColors[colIdx++] = 0.04 * intensity;
-      trailColors[colIdx++] = 0.65 * intensity;
-      trailColors[colIdx++] = 0.95 * intensity;
-    }
-
-    trailGeo.attributes.position.needsUpdate = true;
-    trailGeo.attributes.color.needsUpdate = true;
-    trailGeo.setDrawRange(0, (count - 1) * 6);
-  }
-
-  
   function getStats(){
     return (progression && progression.stats) ? progression.stats : null;
   }
@@ -353,15 +229,6 @@ let cd = 0,
       bladeGroup.add(box(0.052, 0.020, 0.06, 0, 0.04, -0.54, runeMat));
       bladeGroup.add(box(0.052, 0.020, 0.06, 0, 0.05, -0.68, runeMat));
 
-      // Locators for dynamic blade ribbon trail
-      spearBladeTip = new THREE.Object3D();
-      spearBladeTip.position.set(0, 0.16, -0.92);
-      bladeGroup.add(spearBladeTip);
-
-      spearBladeBase = new THREE.Object3D();
-      spearBladeBase.position.set(0, 0.04, -0.08);
-      bladeGroup.add(spearBladeBase);
-
       // Поворачиваем группу клинка под углом ~38° для идеального обзора широкой грани клинка!
       bladeGroup.rotation.z = Math.PI * 0.21;
       g.add(bladeGroup);
@@ -372,9 +239,6 @@ let cd = 0,
       // Боевая диагональная стойка в руках от 1-го лица
       model.rotation.set(-0.08, 0.14, -0.18);
       model.position.set(0.18, -0.09, 0.32);
-    } else {
-      spearBladeTip = null;
-      spearBladeBase = null;
     }
 
     if (w === "bow") {
@@ -900,8 +764,6 @@ let cd = 0,
     cd = 0; swingT = 0; castT = 0; bowCharge = 0; bowCharging = false;
     comboStep = 0; comboNextStep = 0; comboGrace = 0; comboQueued = false;
     spearHitSet = new Set();
-    trailSamples.length = 0;
-    if (trailGeo) trailGeo.setDrawRange(0, 0);
     comboImpulseFired = false;
     camImpulseZ = 0;
     camImpulseX = 0;
@@ -1019,9 +881,6 @@ let cd = 0,
         }
       }
     }
-
-    // Update dynamic weapon blade motion ribbon trail
-    updateBladeTrail(dt);
 
     // Smooth camera tilt decay
     if (camera) {
