@@ -1,16 +1,16 @@
-import { createEngine } from "./core/engine.js?v=20261029_15";
-import { createInput } from "./core/input.js?v=20261029_15";
-import { clamp } from "./core/math.js?v=20261029_15";
-import { createHUD } from "./game/hud.js?v=20261029_15";
-import { createAudio } from "./game/audio.js?v=20261029_15";
-import { createWorld } from "./game/world.js?v=20261029_15";
-import { createPlayer } from "./game/player.js?v=20261029_15";
-import { createWeapons } from "./game/weapons.js?v=20261029_15";
-import { createEnemies } from "./game/enemies.js?v=20261029_15";
-import { createProjectiles } from "./game/projectiles.js?v=20261029_15";
-import { createEffects } from "./game/effects.js?v=20261029_15";
-import { createProgression } from "./game/progression.js?v=20261029_15";
-import { preloadVOXModels } from "./models/vox_registry.js?v=20261029_15";
+import { createEngine } from "./core/engine.js?v=20261029_16";
+import { createInput } from "./core/input.js?v=20261029_16";
+import { clamp } from "./core/math.js?v=20261029_16";
+import { createHUD } from "./game/hud.js?v=20261029_16";
+import { createAudio } from "./game/audio.js?v=20261029_16";
+import { createWorld } from "./game/world.js?v=20261029_16";
+import { createPlayer } from "./game/player.js?v=20261029_16";
+import { createWeapons } from "./game/weapons.js?v=20261029_16";
+import { createEnemies } from "./game/enemies.js?v=20261029_16";
+import { createProjectiles } from "./game/projectiles.js?v=20261029_16";
+import { createEffects } from "./game/effects.js?v=20261029_16";
+import { createProgression } from "./game/progression.js?v=20261029_16";
+import { preloadVOXModels } from "./models/vox_registry.js?v=20261029_16";
 
 // Kick off parallel preload of all VOX models on boot
 preloadVOXModels();
@@ -73,6 +73,11 @@ window.__game = { enemies, player, weapons, engine, input, world };
 
 // Game loop
 let acc = 0;
+let timeScale = 1.0;
+let timeScaleT = 0;
+let gameOver = false;
+let paused = false;
+
 engine.onResize(() => {
   hud.onResize();
 });
@@ -103,11 +108,6 @@ function relAngleToPlayer(worldDir){
   const cross = fx*dz - fz*dx;
   return Math.atan2(cross, dot);
 }
-
-let timeScale = 1.0;
-let timeScaleT = 0;
-let gameOver = false;
-let paused = false;
 
 
 // Resume from pause on click/tap (important for mobile and for when the browser starts unfocused)

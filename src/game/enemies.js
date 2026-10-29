@@ -4,8 +4,8 @@
 // applyDamage(id,dmg,meta) and damage(...) alias returning {killed,xp}
 
 import * as THREE from "three";
-import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_14";
-import { createPortals } from "./portals.js?v=20261029_14";
+import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_16";
+import { createPortals } from "./portals.js?v=20261029_16";
 
 export function createEnemies(ctx) {
   const scene = ctx.scene || ctx.engine?.scene || ctx.engine?.getScene?.();
@@ -1966,8 +1966,6 @@ if (e.kind === "bomber"){
       if (e.kind === "observer") continue;
 
       // --- MELEE / BOSS attack ---
-      const isBoss = (e.kind === "boss");
-      const isBrute = (e.kind === "brute");
       const isSprinter = (e.kind === "sprinter");
       const isShielder = (e.kind === "shielder");
       const isReaper = (e.kind === "reaper");
