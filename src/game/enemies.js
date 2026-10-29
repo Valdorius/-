@@ -4,8 +4,8 @@
 // applyDamage(id,dmg,meta) and damage(...) alias returning {killed,xp}
 
 import * as THREE from "three";
-import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_8";
-import { createPortals } from "./portals.js?v=20261029_8";
+import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_14";
+import { createPortals } from "./portals.js?v=20261029_14";
 
 export function createEnemies(ctx) {
   const scene = ctx.scene || ctx.engine?.scene || ctx.engine?.getScene?.();
@@ -1803,8 +1803,10 @@ if (e.burnT > 0){
 
       // Solid body-to-body collision with player:
       // Enemies CANNOT clip inside the player's torso/camera!
+      const isBoss = (e.kind === "boss");
+      const isBrute = (e.kind === "brute");
       const pRad = player.radius ?? 0.55;
-      const minPdist = e.radius + pRad;
+      const minPdist = isBoss ? 2.10 : (isBrute ? 1.75 : 1.45);
       const curDxp = e.root.position.x - ppos.x;
       const curDzp = e.root.position.z - ppos.z;
       const curD2 = curDxp * curDxp + curDzp * curDzp;
@@ -1817,8 +1819,15 @@ if (e.burnT > 0){
           nx = 0; nz = 1;
         }
         const push = (minPdist - curD) + 1e-4;
-        e.root.position.x += nx * push;
-        e.root.position.z += nz * push;
+        // Two-way collision: enemy is pushed back, and player is stopped from penetrating enemy
+        e.root.position.x += nx * push * 0.60;
+        e.root.position.z += nz * push * 0.60;
+        ppos.x -= nx * push * 0.40;
+        ppos.z -= nz * push * 0.40;
+        if (world?.bounds) {
+          ppos.x = clamp(ppos.x, world.bounds.minX, world.bounds.maxX);
+          ppos.z = clamp(ppos.z, world.bounds.minZ, world.bounds.maxZ);
+        }
       }
 
       // Recompute distance & vector to player after separation
@@ -1826,7 +1835,7 @@ if (e.burnT > 0){
       const sepDzp = ppos.z - e.root.position.z;
       const sepDist = Math.hypot(sepDxp, sepDzp) || 1e-6;
 
-      // face player (at safe physical distance)
+      // face player (safe distance >= 1.45m ensures lookAt is 100% stable!)
       e.root.lookAt(ppos.x, e.root.position.y, ppos.z);
 
       // Articulated limb references (supports VOX skeletal rig and procedural models)
@@ -2069,7 +2078,8 @@ if (e.kind === "bomber"){
           if (e.attackT >= recover) {
             e.attackPhase = 0;
             e.attackT = 0;
-            e.attackCd = cdBase;
+            // Short recovery downtime so melee enemies attack relentlessly at point-blank
+            e.attackCd = cdBase * 0.35;
             if (torso) torso.rotation.y = 0;
             if (weaponArm) weaponArm.rotation.set(0, 0, 0);
             if (shieldArm) shieldArm.rotation.set(0, 0, 0);
