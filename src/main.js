@@ -1,16 +1,16 @@
-import { createEngine } from "./core/engine.js?v=20261029_16";
-import { createInput } from "./core/input.js?v=20261029_16";
-import { clamp } from "./core/math.js?v=20261029_16";
-import { createHUD } from "./game/hud.js?v=20261029_16";
-import { createAudio } from "./game/audio.js?v=20261029_16";
-import { createWorld } from "./game/world.js?v=20261029_16";
-import { createPlayer } from "./game/player.js?v=20261029_16";
-import { createWeapons } from "./game/weapons.js?v=20261029_16";
-import { createEnemies } from "./game/enemies.js?v=20261029_16";
-import { createProjectiles } from "./game/projectiles.js?v=20261029_16";
-import { createEffects } from "./game/effects.js?v=20261029_16";
-import { createProgression } from "./game/progression.js?v=20261029_16";
-import { preloadVOXModels } from "./models/vox_registry.js?v=20261029_16";
+import { createEngine } from "./core/engine.js?v=20261029_20";
+import { createInput } from "./core/input.js?v=20261029_20";
+import { clamp } from "./core/math.js?v=20261029_20";
+import { createHUD } from "./game/hud.js?v=20261029_20";
+import { createAudio } from "./game/audio.js?v=20261029_20";
+import { createWorld } from "./game/world.js?v=20261029_20";
+import { createPlayer } from "./game/player.js?v=20261029_20";
+import { createWeapons } from "./game/weapons.js?v=20261029_20";
+import { createEnemies } from "./game/enemies.js?v=20261029_20";
+import { createProjectiles } from "./game/projectiles.js?v=20261029_20";
+import { createEffects } from "./game/effects.js?v=20261029_20";
+import { createProgression } from "./game/progression.js?v=20261029_20";
+import { preloadVOXModels } from "./models/vox_registry.js?v=20261029_20";
 
 // Kick off parallel preload of all VOX models on boot
 preloadVOXModels();
