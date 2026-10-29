@@ -116,15 +116,15 @@ function buildMesh(parsed, opts){
   // - "origin": keep VOX origin (0,0,0) at (0,0,0)
   // - "center": center the model around (0,0,0)
   // - "bottom_center": center X/Z but keep bottom on Y=0 (best for characters)
-  let ox = 0, oy = 0, oz = 0;
+  let cx = 0, cy = 0, cz = 0;
   if (pivot === "center"){
-    ox = size.x * voxelSize * 0.5;
-    oy = size.y * voxelSize * 0.5;
-    oz = size.z * voxelSize * 0.5;
+    cx = size.x * voxelSize * 0.5;
+    cy = size.y * voxelSize * 0.5;
+    cz = size.z * voxelSize * 0.5;
   } else if (pivot === "bottom_center"){
-    ox = size.x * voxelSize * 0.5;
-    oy = 0;
-    oz = size.z * voxelSize * 0.5;
+    cx = size.x * voxelSize * 0.5;
+    cy = size.y * voxelSize * 0.5;
+    cz = 0;
   }
 
 
