@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
+import { createPixelWoodTexture } from "./textures.js";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -97,8 +98,11 @@ let cd = 0,
   function buildModel(w) {
     if (model) hand.remove(model);
 
-    const metal = new THREE.MeshStandardMaterial({ color: 0xdfe9ff, roughness: 0.55, metalness: 0.15 });
-    const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.85 });
+    const woodTex = createPixelWoodTexture();
+    woodTex.repeat.set(1, 4);
+
+    const metal = new THREE.MeshStandardMaterial({ color: 0xdfe9ff, roughness: 0.55, metalness: 0.25 });
+    const wood = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.85 });
 
     model = new THREE.Group();
 
@@ -106,23 +110,26 @@ let cd = 0,
       // Копьё (FPS): ГОРИЗОНТАЛЬНО вдоль Z.
       const g = new THREE.Group();
 
-      const metal3 = new THREE.MeshStandardMaterial({ color: 0xdfe9ff, roughness: 0.45, metalness: 0.35 });
-      const darkWood = new THREE.MeshStandardMaterial({ color: 0x6b4227, roughness: 0.90 });
-      const wrap = new THREE.MeshStandardMaterial({ color: 0x3b2b22, roughness: 0.95 });
+      const spearWoodTex = createPixelWoodTexture();
+      spearWoodTex.repeat.set(1, 8);
+
+      const metal3 = new THREE.MeshStandardMaterial({ color: 0xd8e4fc, roughness: 0.40, metalness: 0.45 });
+      const darkWood = new THREE.MeshStandardMaterial({ map: spearWoodTex, roughness: 0.88 });
+      const wrap = new THREE.MeshStandardMaterial({ color: 0x33241b, roughness: 0.95 });
 
       // Древко: цилиндр по умолчанию вдоль Y, поворачиваем чтобы стало вдоль Z
       const SHAFT_LEN = 1.65;
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.034, SHAFT_LEN, 10), darkWood);
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.034, SHAFT_LEN, 8), darkWood);
       shaft.rotation.x = Math.PI / 2;
       shaft.position.set(0, 0.02, -0.88);
       g.add(shaft);
 
-      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.040, 0.34, 10), wrap);
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.040, 0.34, 8), wrap);
       grip.rotation.x = Math.PI / 2;
       grip.position.set(0, 0.02, -0.18);
       g.add(grip);
 
-      const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.18, 10), metal3);
+      const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.18, 8), metal3);
       socket.rotation.x = Math.PI / 2;
       socket.position.set(0, 0.02, -1.62);
       g.add(socket);
@@ -147,7 +154,7 @@ let cd = 0,
       bowAnim.muzzle = null;
 
       const g = new THREE.Group();
-      const limbMat = new THREE.MeshStandardMaterial({ color: 0x6f4a2f, roughness: 0.9 });
+      const limbMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.88 });
 
       // цельная дуга
       const X = 0.16;
@@ -212,7 +219,7 @@ let cd = 0,
 
       const g = new THREE.Group();
 
-      const darkWood = new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.92 });
+      const darkWood = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.90 });
       const metal2 = new THREE.MeshStandardMaterial({ color: 0xc7ceda, roughness: 0.35, metalness: 0.55 });
       const crystalMat = new THREE.MeshStandardMaterial({
         color: 0xff4455,

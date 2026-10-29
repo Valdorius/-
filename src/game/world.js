@@ -1,9 +1,16 @@
 import * as THREE from "three";
+import {
+  createPixelStoneBrickTexture,
+  createPixelRuneEmissiveTexture,
+  createPixelFloorTextures
+} from "./textures.js";
 
 /**
  * Hex arena + internal walls + solid collision.
  * - Arena is ~3x larger than the old rectangular box.
  * - Walls are "solid" via a circle-vs-capsule resolver in XZ plane.
+ * - Retro Voxel / Pixel-Art styling: razor-sharp NearestFilter textures,
+ *   architectural 3-piece voxel pillars with glowing runes, modular floor.
  */
 
 export function createWorld(engine){
@@ -18,174 +25,149 @@ export function createWorld(engine){
   const WALL_H = 6;
   const WALL_T = 1.8;      // thickness
   const WALL_R = WALL_T*0.5;
-  // Floor + Materials (visual upgrade only; no gameplay changes)
-  // ===== Materials (upgraded arena look; no gameplay changes) =====
-  const texPack = (function(){
-    const size = 1024;
-    // --- Color map ---
-    const c = document.createElement("canvas");
-    c.width = size; c.height = size;
-    const g = c.getContext("2d");
-    // base
-    const base = g.createRadialGradient(size*0.5,size*0.5, size*0.12, size*0.5,size*0.5, size*0.62);
-    base.addColorStop(0, "#111c2f");
-    base.addColorStop(1, "#0a1020");
-    g.fillStyle = base;
-    g.fillRect(0,0,size,size);
 
-    // subtle noise
-    const img = g.getImageData(0,0,size,size);
-    for(let i=0;i<img.data.length;i+=4){
-      const n = (Math.random()*14)|0;
-      img.data[i]   = Math.min(255, img.data[i]   + n);
-      img.data[i+1] = Math.min(255, img.data[i+1] + n);
-      img.data[i+2] = Math.min(255, img.data[i+2] + n);
-    }
-    g.putImageData(img,0,0);
-
-    // hex-ish grid (draw rotated honeycomb impression)
-    g.globalAlpha = 0.22;
-    g.strokeStyle = "rgba(120,200,255,0.55)";
-    g.lineWidth = 2;
-    const step = 64;
-    const h = step * Math.sqrt(3)/2;
-    for(let y=-step; y<size+step; y+=h){
-      const odd = (((y/h)|0) % 2) ? step/2 : 0;
-      for(let x=-step; x<size+step; x+=step){
-        const cx = x + odd;
-        const cy = y;
-        g.beginPath();
-        for(let k=0;k<6;k++){
-          const a = Math.PI/3*k + Math.PI/6;
-          const px = cx + Math.cos(a)*step*0.42;
-          const py = cy + Math.sin(a)*step*0.42;
-          if(k===0) g.moveTo(px,py); else g.lineTo(px,py);
-        }
-        g.closePath();
-        g.stroke();
-      }
-    }
-
-    // arena rings + markings
-    g.globalAlpha = 0.28;
-    g.strokeStyle = "rgba(255,120,180,0.55)";
-    g.lineWidth = 4;
-    for(let r=140;r<=420;r+=70){
-      g.beginPath();
-      g.arc(size*0.5,size*0.5,r,0,Math.PI*2);
-      g.stroke();
-    }
-    // central emblem
-    g.globalAlpha = 0.22;
-    g.fillStyle = "rgba(0,200,255,0.35)";
-    g.beginPath();
-    g.moveTo(size*0.5, size*0.5-80);
-    g.lineTo(size*0.5+70, size*0.5+60);
-    g.lineTo(size*0.5-70, size*0.5+60);
-    g.closePath();
-    g.fill();
-
-    // --- Emissive map (glow lines) ---
-    const e = document.createElement("canvas");
-    e.width = size; e.height = size;
-    const eg = e.getContext("2d");
-    eg.clearRect(0,0,size,size);
-    eg.globalAlpha = 0.95;
-    // copy grid as glow
-    eg.drawImage(c,0,0);
-    // boost rings/emblem
-    eg.globalCompositeOperation = "lighter";
-    eg.globalAlpha = 0.55;
-    eg.fillStyle = "rgba(0,180,255,0.65)";
-    eg.beginPath(); eg.arc(size*0.5,size*0.5,18,0,Math.PI*2); eg.fill();
-
-    const map = new THREE.CanvasTexture(c);
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.wrapS = map.wrapT = THREE.RepeatWrapping;
-    map.repeat.set(1,1);
-    map.anisotropy = 8;
-
-    const emissiveMap = new THREE.CanvasTexture(e);
-    emissiveMap.colorSpace = THREE.SRGBColorSpace;
-    emissiveMap.wrapS = emissiveMap.wrapT = THREE.RepeatWrapping;
-    emissiveMap.repeat.set(1,1);
-    emissiveMap.anisotropy = 8;
-
-    return { map, emissiveMap };
-  })();
+  // ===== Modular Pixel-Art Floor Textures =====
+  const floorTex = createPixelFloorTextures();
+  // 260m plane / 65 repeats = 4m per 128x128 texture, exactly 1m per 32x32 cobblestone tile!
+  floorTex.map.repeat.set(65, 65);
+  floorTex.emissiveMap.repeat.set(65, 65);
 
   const floorMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
-    map: texPack.map,
-    emissive: new THREE.Color(0x113355),
-    emissiveIntensity: 0.85,
-    emissiveMap: texPack.emissiveMap,
-    roughness: 0.95,
-    metalness: 0.0
+    map: floorTex.map,
+    emissive: new THREE.Color(0x0a223a),
+    emissiveIntensity: 0.90,
+    emissiveMap: floorTex.emissiveMap,
+    roughness: 0.88,
+    metalness: 0.05
   });
 
-  const wallMat  = new THREE.MeshStandardMaterial({
-    color: 0x1a2438,
-    roughness:0.88,
-    metalness:0.0,
-    emissive: new THREE.Color(0x081018),
-    emissiveIntensity: 0.18
-  });
-
-  const innerMat = new THREE.MeshStandardMaterial({
-    color: 0x22304a,
-    roughness:0.86,
-    metalness:0.0,
-    emissive: new THREE.Color(0x0a1520),
-    emissiveIntensity: 0.16
-  });
-
-  const colMat   = new THREE.MeshStandardMaterial({ color: 0x27324a, roughness:0.95, metalness:0.0 });
-
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(260,260), floorMat);
-  floor.rotation.x = -Math.PI/2;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), floorMat);
+  floor.rotation.x = -Math.PI / 2;
   floor.position.y = 0;
   group.add(floor);
 
   // Neon rim ring (purely visual)
-  const rimGeo = new THREE.RingGeometry(HEX_R*0.96, HEX_R*1.03, 96, 1);
-  const rimMat = new THREE.MeshBasicMaterial({ color: 0x39c7ff, transparent:true, opacity:0.55, side:THREE.DoubleSide });
+  const rimGeo = new THREE.RingGeometry(HEX_R * 0.96, HEX_R * 1.03, 96, 1);
+  const rimMat = new THREE.MeshBasicMaterial({ color: 0x39c7ff, transparent: true, opacity: 0.65, side: THREE.DoubleSide });
   const rim = new THREE.Mesh(rimGeo, rimMat);
-  rim.rotation.x = -Math.PI/2;
+  rim.rotation.x = -Math.PI / 2;
   rim.position.y = 0.02;
   group.add(rim);
+
+  // ===== Stone & Rune Materials for Pillars and Walls =====
+  const wallBrickTex = createPixelStoneBrickTexture();
+  wallBrickTex.repeat.set(12, 2);
+  const wallMat = new THREE.MeshStandardMaterial({
+    map: wallBrickTex,
+    roughness: 0.88,
+    metalness: 0.05,
+    emissive: new THREE.Color(0x091420),
+    emissiveIntensity: 0.22
+  });
+
+  const wallTrimMat = new THREE.MeshBasicMaterial({
+    color: 0x00d2ff,
+    transparent: true,
+    opacity: 0.80
+  });
+
+  // Pillar trim: dark chiseled stone for base and capital
+  const pillarTrimTex = createPixelStoneBrickTexture({
+    palette: ["#1e2838", "#253347", "#1a2332", "#2c3c52"],
+    mortarColor: "#0b1018"
+  });
+  pillarTrimTex.repeat.set(2, 1);
+  const pillarTrimMat = new THREE.MeshStandardMaterial({
+    map: pillarTrimTex,
+    roughness: 0.92,
+    metalness: 0.05
+  });
+
+  // Plain stone brick shaft
+  const pillarShaftTex = createPixelStoneBrickTexture();
+  pillarShaftTex.repeat.set(2, 3);
+  const pillarShaftMat = new THREE.MeshStandardMaterial({
+    map: pillarShaftTex,
+    roughness: 0.88,
+    metalness: 0.05,
+    emissive: new THREE.Color(0x08101a),
+    emissiveIntensity: 0.20
+  });
+
+  // Cyan glowing rune pillar
+  const runeCyanBaseTex = createPixelStoneBrickTexture();
+  runeCyanBaseTex.repeat.set(1, 2);
+  const runeCyanEmissiveTex = createPixelRuneEmissiveTexture({
+    color: "#39c7ff",
+    glowColor: "rgba(20, 130, 220, 0.60)"
+  });
+  runeCyanEmissiveTex.repeat.set(1, 2);
+  const pillarRuneCyanMat = new THREE.MeshStandardMaterial({
+    map: runeCyanBaseTex,
+    emissiveMap: runeCyanEmissiveTex,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 1.5,
+    roughness: 0.85,
+    metalness: 0.05
+  });
+
+  // Emerald glowing rune pillar
+  const runeEmeraldBaseTex = createPixelStoneBrickTexture();
+  runeEmeraldBaseTex.repeat.set(1, 2);
+  const runeEmeraldEmissiveTex = createPixelRuneEmissiveTexture({
+    color: "#2af598",
+    glowColor: "rgba(10, 160, 80, 0.60)"
+  });
+  runeEmeraldEmissiveTex.repeat.set(1, 2);
+  const pillarRuneEmeraldMat = new THREE.MeshStandardMaterial({
+    map: runeEmeraldBaseTex,
+    emissiveMap: runeEmeraldEmissiveTex,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 1.5,
+    roughness: 0.85,
+    metalness: 0.05
+  });
 
   // ===== Colliders =====
   const segs = [];   // {ax,az,bx,bz,r}
   const circles = []; // {x,z,r}
 
-  function addSegment(ax, az, bx, bz, mat=wallMat){
-    const dx = bx-ax, dz = bz-az;
-    const len = Math.hypot(dx,dz);
+  function addSegment(ax, az, bx, bz, mat = wallMat){
+    const dx = bx - ax, dz = bz - az;
+    const len = Math.hypot(dx, dz);
 
     const geo = new THREE.BoxGeometry(WALL_T, WALL_H, Math.max(0.01, len));
     const m = new THREE.Mesh(geo, mat);
-    m.position.set((ax+bx)*0.5, WALL_H*0.5, (az+bz)*0.5);
+    m.position.set((ax + bx) * 0.5, WALL_H * 0.5, (az + dz) * 0.5);
     m.rotation.y = Math.atan2(dx, dz);
     group.add(m);
+
+    // Glowing neon crenellation trim along the wall top
+    const trimGeo = new THREE.BoxGeometry(WALL_T * 1.04, 0.16, Math.max(0.01, len));
+    const trimMesh = new THREE.Mesh(trimGeo, wallTrimMat);
+    trimMesh.position.set((ax + bx) * 0.5, WALL_H + 0.08, (az + dz) * 0.5);
+    trimMesh.rotation.y = Math.atan2(dx, dz);
+    group.add(trimMesh);
 
     segs.push({ ax, az, bx, bz, r: WALL_R });
   }
 
   // ===== Outer hex =====
   const pts = [];
-  for(let i=0;i<6;i++){
-    const ang = Math.PI/3 * i + Math.PI/6; // flat side faces -Z/+Z
-    pts.push([Math.cos(ang)*HEX_R, Math.sin(ang)*HEX_R]);
+  for(let i = 0; i < 6; i++){
+    const ang = Math.PI / 3 * i + Math.PI / 6; // flat side faces -Z/+Z
+    pts.push([Math.cos(ang) * HEX_R, Math.sin(ang) * HEX_R]);
   }
-  for(let i=0;i<6;i++){
-    const a = pts[i], b = pts[(i+1)%6];
+  for(let i = 0; i < 6; i++){
+    const a = pts[i], b = pts[(i + 1) % 6];
     addSegment(a[0], a[1], b[0], b[1], wallMat);
   }
 
+  // ===== Columns for cover (Architectural Voxel Pillars) =====
+  const baseCapGeo = new THREE.BoxGeometry(2.5, 0.45, 2.5);
+  const shaftGeo = new THREE.BoxGeometry(2.0, 3.5, 2.0);
 
-  // ===== Columns for cover (scaled) =====
-  const colGeo = new THREE.BoxGeometry(2.2, 4.2, 2.2);
   const spots = [];
   // Evenly distributed cover columns (no central wall). Rings across arena.
   const rings = [
@@ -195,62 +177,95 @@ export function createWorld(engine){
     { r: 38, n: 16 }
   ];
   for (const ring of rings){
-    for (let i=0;i<ring.n;i++){
-      const a = (i/ring.n) * Math.PI * 2;
-      const j = (Math.sin(i*12.345)+Math.cos(i*3.21))*0.6; // deterministic jitter
+    for (let i = 0; i < ring.n; i++){
+      const a = (i / ring.n) * Math.PI * 2;
+      const j = (Math.sin(i * 12.345) + Math.cos(i * 3.21)) * 0.6; // deterministic jitter
       const rr = ring.r + j;
-      spots.push([Math.cos(a)*rr, Math.sin(a)*rr]);
+      spots.push([Math.cos(a) * rr, Math.sin(a) * rr]);
     }
   }
   // A few inner columns for tactics, but keep the very center open.
-  const inner = [[-6,-6],[6,-6],[-6,6],[6,6],[0,-12],[0,12],[-12,0],[12,0]];
+  const inner = [[-6, -6], [6, -6], [-6, 6], [6, 6], [0, -12], [0, 12], [-12, 0], [12, 0]];
   for (const p of inner) spots.push(p);
-  for (const [x,z] of spots){
-    const c = new THREE.Mesh(colGeo, colMat);
-    c.position.set(x, 2.1, z);
-    group.add(c);
-    circles.push({ x, z, r: 1.25 }); // collision radius in XZ
+
+  for (let idx = 0; idx < spots.length; idx++){
+    const [x, z] = spots[idx];
+    const pillarGroup = new THREE.Group();
+    pillarGroup.position.set(x, 0, z);
+
+    // 1. Stepped Base Pedestal (0 to 0.45m)
+    const baseMesh = new THREE.Mesh(baseCapGeo, pillarTrimMat);
+    baseMesh.position.y = 0.225;
+    pillarGroup.add(baseMesh);
+
+    // 2. Shaft with alternating glowing runes (0.45m to 3.95m)
+    // 33% Cyan Runes, 33% Emerald Runes, 34% Plain Stone Brick
+    const shaftMat = (idx % 3 === 0)
+      ? pillarRuneCyanMat
+      : (idx % 3 === 1)
+        ? pillarRuneEmeraldMat
+        : pillarShaftMat;
+
+    const shaftMesh = new THREE.Mesh(shaftGeo, shaftMat);
+    shaftMesh.position.y = 2.20;
+    pillarGroup.add(shaftMesh);
+
+    // 3. Stepped Capital Crown (3.95m to 4.40m)
+    const capMesh = new THREE.Mesh(baseCapGeo, pillarTrimMat);
+    capMesh.position.y = 4.175;
+    pillarGroup.add(capMesh);
+
+    // Subtle soft light near glowing rune pillars
+    if (idx % 3 !== 2) {
+      const pColor = (idx % 3 === 0) ? 0x39c7ff : 0x2af598;
+      const pLight = new THREE.PointLight(pColor, 0.45, 6.0, 2.0);
+      pLight.position.set(0, 2.2, 0);
+      pillarGroup.add(pLight);
+    }
+
+    group.add(pillarGroup);
+    circles.push({ x, z, r: 1.25 }); // collision radius in XZ preserved!
   }
 
   // Coarse clamp (stability). Real "solid" is colliders.
-  const bounds = { minX:-HEX_R-2, maxX:HEX_R+2, minZ:-HEX_R-2, maxZ:HEX_R+2 };
+  const bounds = { minX: -HEX_R - 2, maxX: HEX_R + 2, minZ: -HEX_R - 2, maxZ: HEX_R + 2 };
 
-  function resolveCircle(pos, radius, iterations=2){
-    for(let it=0; it<iterations; it++){
+  function resolveCircle(pos, radius, iterations = 2){
+    for(let it = 0; it < iterations; it++){
       // segments as capsules
       for(const s of segs){
-        const ax=s.ax, az=s.az, bx=s.bx, bz=s.bz, wr=s.r;
-        const vx = bx-ax, vz = bz-az;
-        const wx = pos.x-ax, wz = pos.z-az;
-        const vv = vx*vx+vz*vz || 1e-6;
+        const ax = s.ax, az = s.az, bx = s.bx, bz = s.bz, wr = s.r;
+        const vx = bx - ax, vz = bz - az;
+        const wx = pos.x - ax, wz = pos.z - az;
+        const vv = vx * vx + vz * vz || 1e-6;
 
-        let t = (wx*vx + wz*vz)/vv;
+        let t = (wx * vx + wz * vz) / vv;
         t = Math.max(0, Math.min(1, t));
 
-        const cx = ax + vx*t;
-        const cz = az + vz*t;
+        const cx = ax + vx * t;
+        const cz = az + vz * t;
 
         let dx = pos.x - cx;
         let dz = pos.z - cz;
-        let d2 = dx*dx + dz*dz;
+        let d2 = dx * dx + dz * dz;
 
         const minD = radius + wr;
-        const minD2 = minD*minD;
+        const minD2 = minD * minD;
 
         if(d2 < minD2){
           let d = Math.sqrt(d2);
           if(d < 1e-5){
             // stable normal: perpendicular to segment
             const nx = -vz, nz = vx;
-            const nl = Math.hypot(nx,nz) || 1;
-            dx = nx/nl; dz = nz/nl;
+            const nl = Math.hypot(nx, nz) || 1;
+            dx = nx / nl; dz = nz / nl;
             d = 1e-5;
           }else{
             dx /= d; dz /= d;
           }
           const push = (minD - d) + 1e-4;
-          pos.x += dx*push;
-          pos.z += dz*push;
+          pos.x += dx * push;
+          pos.z += dz * push;
         }
       }
 
@@ -259,14 +274,14 @@ export function createWorld(engine){
         const dx = pos.x - c.x;
         const dz = pos.z - c.z;
         const minD = radius + c.r;
-        const d2 = dx*dx + dz*dz;
-        if(d2 < minD*minD){
+        const d2 = dx * dx + dz * dz;
+        if(d2 < minD * minD){
           let d = Math.sqrt(d2);
-          let nx=1, nz=0;
-          if(d > 1e-5){ nx = dx/d; nz = dz/d; }
+          let nx = 1, nz = 0;
+          if(d > 1e-5){ nx = dx / d; nz = dz / d; }
           const push = (minD - d) + 1e-4;
-          pos.x += nx*push;
-          pos.z += nz*push;
+          pos.x += nx * push;
+          pos.z += nz * push;
         }
       }
 
