@@ -34,8 +34,8 @@ export function createEnemies(ctx) {
   const BOSS_DMG = 22;
   const BOSS_RADIUS = 1.05;
 
-  const ATTACK_RANGE = 1.25;
-  const ATTACK_COOLDOWN = 0.9;
+  const ATTACK_RANGE = 1.45;
+  const ATTACK_COOLDOWN = 0.85;
   // melee swing timing (seconds)
   const ATTACK_WINDUP = 0.22;
   const ATTACK_SWING = 0.18;
@@ -1801,7 +1801,32 @@ if (e.burnT > 0){
       e.root.position.z = clamp(e.root.position.z, world.bounds.minZ, world.bounds.maxZ);
       if (world?.resolveCircle) world.resolveCircle(e.root.position, e.radius, 2);
 
-      // face player
+      // Solid body-to-body collision with player:
+      // Enemies CANNOT clip inside the player's torso/camera!
+      const pRad = player.radius ?? 0.55;
+      const minPdist = e.radius + pRad;
+      const curDxp = e.root.position.x - ppos.x;
+      const curDzp = e.root.position.z - ppos.z;
+      const curD2 = curDxp * curDxp + curDzp * curDzp;
+      if (curD2 < minPdist * minPdist) {
+        const curD = Math.sqrt(curD2);
+        let nx = curDxp, nz = curDzp;
+        if (curD > 1e-4) {
+          nx /= curD; nz /= curD;
+        } else {
+          nx = 0; nz = 1;
+        }
+        const push = (minPdist - curD) + 1e-4;
+        e.root.position.x += nx * push;
+        e.root.position.z += nz * push;
+      }
+
+      // Recompute distance & vector to player after separation
+      const sepDxp = ppos.x - e.root.position.x;
+      const sepDzp = ppos.z - e.root.position.z;
+      const sepDist = Math.hypot(sepDxp, sepDzp) || 1e-6;
+
+      // face player (at safe physical distance)
       e.root.lookAt(ppos.x, e.root.position.y, ppos.z);
 
       // Articulated limb references (supports VOX skeletal rig and procedural models)
@@ -1947,8 +1972,8 @@ if (e.kind === "bomber"){
       // melee attack: windup -> swing -> recover
       if (e.attackPhase === 0 || e.attackPhase === 3) e.attackCd -= dt;
 
-      const toPnx = dxp / dist;
-      const toPnz = dzp / dist;
+      const toPnx = sepDxp / sepDist;
+      const toPnz = sepDzp / sepDist;
 
       // enemy forward (after lookAt)
       const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(e.root.quaternion);
@@ -1959,7 +1984,12 @@ if (e.kind === "bomber"){
       const dot = clamp(fwd.x * toPnx + fwd.z * toPnz, -1, 1);
       const angDeg = Math.acos(dot) * 180 / Math.PI;
 
-      if (e.attackPhase === 0 && e.attackCd <= 0 && dist < atkRange && angDeg < atkArc) {
+      // At point-blank / touching distance (sepDist <= minPdist + 0.45m),
+      // the enemy is in direct melee contact with player and MUST attack relentlessly!
+      const isTouching = (sepDist <= minPdist + 0.45);
+      const canInitiate = (sepDist < atkRange) && (isTouching || (angDeg < atkArc));
+
+      if (e.attackPhase === 0 && e.attackCd <= 0 && canInitiate) {
         e.attackPhase = 1;
         e.attackT = 0;
         e.hitThisSwing = false;
@@ -2005,15 +2035,16 @@ if (e.kind === "bomber"){
             torso.rotation.y = sideSign * (-0.20 + a * 0.35); // torso follows the sword strike
           }
 
-          if (!e.hitThisSwing && a >= 0.45 && a <= 0.75) {
-            const hitRange = (isBoss ? 2.25 : 1.55) + e.radius;
+          if (!e.hitThisSwing && a >= 0.40 && a <= 0.80) {
+            const hitRange = (isBoss ? 2.35 : 1.70) + e.radius;
             const playerRadius = player.radius ?? 0.55;
 
             // recompute angle window
             const dot2 = clamp(fwd.x * toPnx + fwd.z * toPnz, -1, 1);
             const ang2 = Math.acos(dot2) * 180 / Math.PI;
+            const canHit = isTouching || (ang2 < (atkArc + 25));
 
-            if (dist < hitRange + playerRadius && ang2 < (atkArc + 10)) {
+            if (sepDist < hitRange + playerRadius && canHit) {
               player.applyDamage?.(e.damage * dmgMul);
               e.hitThisSwing = true;
             }
