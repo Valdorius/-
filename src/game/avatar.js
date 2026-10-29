@@ -174,7 +174,7 @@ export function createVoxelAvatar({
     const breathe = Math.sin(state.t*2.0) * 0.008;
     torso.position.y = 0.32 + breathe;
 
-    const sway = state.moving * Math.sin(state.t*9.0) * 0.06;
+    const sway = state.moving * Math.sin(state.t*9.0) * 0.55;
     legL.rotation.x =  sway;
     legR.rotation.x = -sway;
     armL.rotation.x = -sway*0.6;
@@ -183,6 +183,14 @@ export function createVoxelAvatar({
     // Head slightly follows aim pitch (clamped)
     const p = Math.max(-0.6, Math.min(0.6, state.aimPitch));
     head.rotation.x = p * 0.35;
+
+    if (g.voxMesh?.legL) {
+      g.voxMesh.legL.rotation.x = sway;
+      g.voxMesh.legR.rotation.x = -sway;
+      if (g.voxMesh.armL) g.voxMesh.armL.rotation.x = -sway * 0.85;
+      if (g.voxMesh.armR) g.voxMesh.armR.rotation.x = sway * 0.85;
+      if (g.voxMesh.head) g.voxMesh.head.rotation.x = p * 0.35;
+    }
   }
 
   return {

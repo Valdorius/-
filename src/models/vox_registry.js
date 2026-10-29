@@ -1,12 +1,12 @@
 import * as THREE from "three";
-import { loadVOX } from "./vox_loader.js?v=20261029_5";
+import { loadVOX } from "./vox_loader.js?v=20261029_6";
 
 /**
- * VOX registry.
+ * VOX registry with articulated limb rig support.
  * Important: never "blank" a character until VOX is actually loaded.
  * This prevents invisible enemies when a VOX fails to parse/load.
  */
-const V = "20261029_5";
+const V = "20261029_6";
 
 export const VOX_MODELS = {
   // 32x32x32 models → voxelSize 0.056 = ~1.8m tall
@@ -36,7 +36,7 @@ function makeMissing() {
 }
 
 /**
- * Attach VOX mesh to an existing group.
+ * Attach VOX mesh/rig to an existing group.
  * - keepExisting=true keeps current visuals until VOX successfully loads.
  * - replace=true (default) removes existing Mesh/Group visuals after VOX loads.
  */
@@ -49,7 +49,6 @@ export function attachVOXSkin(group, key, opts={}) {
 
   loadVOX(cfg.url, cfg).then((mesh) => {
     if (!mesh) {
-      // If it failed to load, keep existing visuals (never make invisible).
       if (!keepExisting) {
         const ph = makeMissing();
         ph.name = `${key}_VOX_MISSING`;
@@ -74,8 +73,15 @@ export function attachVOXSkin(group, key, opts={}) {
 
     group.add(mesh);
     group.voxMesh = mesh;
+
+    // Bind articulated limb groups directly on target group for animation controllers
+    group.head = mesh.head;
+    group.torso = mesh.torso;
+    group.armL = mesh.armL;
+    group.armR = mesh.armR;
+    group.legL = mesh.legL;
+    group.legR = mesh.legR;
   }).catch(() => {
-    // Silent fail: keep current visuals; add a small placeholder only if caller wanted replace.
     if (!keepExisting) {
       const ph = makeMissing();
       ph.name = `${key}_VOX_MISSING`;

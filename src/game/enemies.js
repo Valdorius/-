@@ -4,7 +4,7 @@
 // applyDamage(id,dmg,meta) and damage(...) alias returning {killed,xp}
 
 import * as THREE from "three";
-import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_4";
+import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_6";
 import { createPortals } from "./portals.js?v=20261029_4";
 
 export function createEnemies(ctx) {
@@ -1804,22 +1804,48 @@ if (e.burnT > 0){
       // face player
       e.root.lookAt(ppos.x, e.root.position.y, ppos.z);
 
-      // walk anim
-      const t = performance.now() * 0.006 + e.id;
-      const step = Math.sin(t) * 0.55;
-      if (e.model?.armL) e.model.armL.rotation.x = step;
-      if (e.model?.armR) e.model.armR.rotation.x = -step;
-      if (e.model?.legL) e.model.legL.rotation.x = -step;
-      if (e.model?.legR) e.model.legR.rotation.x = step;
+      // Articulated limb references (supports VOX skeletal rig and procedural models)
+      const armL = e.root.armL || e.root.voxMesh?.armL || e.model?.armL;
+      const armR = e.root.armR || e.root.voxMesh?.armR || e.model?.armR;
+      const legL = e.root.legL || e.root.voxMesh?.legL || e.model?.legL;
+      const legR = e.root.legR || e.root.voxMesh?.legR || e.model?.legR;
+      const head = e.root.head || e.root.voxMesh?.head || e.model?.head;
+      const torso = e.root.torso || e.root.voxMesh?.torso || e.model?.torso;
 
-      // VOX mesh organic dynamic locomotion
+      // Walk / stride locomotion
+      const t = performance.now() * 0.007 + e.id * 1.5;
+      const spdRatio = clamp(spd / BASE_SPEED, 0.4, 2.2);
+      const step = Math.sin(t * spdRatio) * 0.55;
+
+      if (legL) legL.rotation.x = -step;
+      if (legR) legR.rotation.x = step;
+
+      // Natural arm swing during locomotion when not attacking
+      if (e.attackPhase === 0) {
+        if (armL) {
+          armL.rotation.x = step * 0.85;
+          armL.rotation.z = 0.06;
+          armL.rotation.y = 0;
+        }
+        if (armR) {
+          armR.rotation.x = -step * 0.85;
+          armR.rotation.z = -0.06;
+          armR.rotation.y = 0;
+        }
+        if (torso) {
+          torso.rotation.y = 0;
+          torso.rotation.z = 0;
+        }
+      }
+
+      // Stable upright body: ZERO whole-body rocking/swaying/wobble!
       const vox = e.root.voxMesh || e.root.children.find(c => c.name && c.name.endsWith("_VOX"));
       if (vox) {
-        const spdRatio = clamp(spd / BASE_SPEED, 0.4, 2.0);
-        const bounce = Math.abs(Math.sin(t * 1.5)) * 0.08 * spdRatio;
-        vox.position.y = bounce;
-        vox.rotation.z = Math.sin(t * 0.75) * 0.07 * spdRatio; // sway side to side
-        vox.rotation.x = 0.09 * spdRatio; // forward running lean
+        vox.position.y = 0;
+        vox.position.z = 0;
+        vox.rotation.z = 0; // ZERO rocking side-to-side
+        vox.rotation.x = 0; // ZERO bobbing
+        vox.rotation.y = 0;
       }
 
       // --- RANGED/SNIPER/SUMMONER: shoot / summon ---
@@ -1942,34 +1968,34 @@ if (e.kind === "bomber"){
       if (e.attackPhase !== 0) {
         e.attackT += dt;
 
-        const vox = e.root.voxMesh || e.root.children.find(c => c.name && c.name.endsWith("_VOX"));
-
         if (e.attackPhase === 1) { // windup
           const a = clamp(e.attackT / windup, 0, 1);
-          if (e.model?.armR) {
-            e.model.armR.rotation.x = -0.6 - a * 1.05;
-            e.model.armR.rotation.z =  0.2 + a * 0.35;
+          if (armR) {
+            armR.rotation.x = -0.6 - a * 1.15; // raise weapon arm back & high
+            armR.rotation.z = -0.15 - a * 0.25;
+            armR.rotation.y = a * 0.25;
           }
-          if (e.model?.armL) e.model.armL.rotation.x =  0.25 + a * 0.25;
-
-          if (vox) {
-            vox.rotation.x = 0.09 - a * 0.32;
-            vox.position.y = (vox.position.y || 0) + a * 0.07;
-            vox.rotation.y = a * 0.18;
+          if (armL) {
+            armL.rotation.x = 0.25 + a * 0.25; // off-hand balance
+            armL.rotation.z = 0.12;
+          }
+          if (torso) {
+            torso.rotation.y = -a * 0.20; // torso winds back
           }
 
           if (e.attackT >= windup) { e.attackPhase = 2; e.attackT = 0; }
-        } else if (e.attackPhase === 2) { // swing
+        } else if (e.attackPhase === 2) { // swing / slash
           const a = clamp(e.attackT / swing, 0, 1);
-          if (e.model?.armR) {
-            e.model.armR.rotation.x = (-1.65) + a * (2.45);
-            e.model.armR.rotation.z = ( 0.55) - a * (0.75);
+          if (armR) {
+            armR.rotation.x = -1.75 + a * 2.85; // powerful downward slash forward
+            armR.rotation.z = -0.40 + a * 0.50;
+            armR.rotation.y = 0.25 - a * 0.45;
           }
-
-          if (vox) {
-            vox.rotation.x = (-0.23) + a * 0.52;
-            vox.position.z = a * 0.24;
-            vox.rotation.y = 0.18 - a * 0.36;
+          if (armL) {
+            armL.rotation.x = 0.5 - a * 0.35;
+          }
+          if (torso) {
+            torso.rotation.y = -0.20 + a * 0.35; // torso follows strike
           }
 
           if (!e.hitThisSwing && a >= 0.45 && a <= 0.75) {
@@ -1989,21 +2015,25 @@ if (e.kind === "bomber"){
           if (e.attackT >= swing) { e.attackPhase = 3; e.attackT = 0; }
         } else if (e.attackPhase === 3) { // recover
           const a = clamp(e.attackT / recover, 0, 1);
-          if (e.model?.armR) {
-            e.model.armR.rotation.x = 0.8 * (1 - a);
-            e.model.armR.rotation.z = -0.15 * (1 - a);
+          if (armR) {
+            armR.rotation.x = 1.10 * (1 - a);
+            armR.rotation.z = 0.10 * (1 - a);
+            armR.rotation.y = -0.20 * (1 - a);
           }
-
-          if (vox) {
-            vox.rotation.x = 0.29 * (1 - a);
-            vox.position.z = 0.24 * (1 - a);
-            vox.rotation.y = -0.18 * (1 - a);
+          if (armL) {
+            armL.rotation.x = 0.15 * (1 - a);
+          }
+          if (torso) {
+            torso.rotation.y = 0.15 * (1 - a);
           }
 
           if (e.attackT >= recover) {
             e.attackPhase = 0;
             e.attackT = 0;
             e.attackCd = cdBase;
+            if (torso) torso.rotation.y = 0;
+            if (armR) armR.rotation.set(0, 0, 0);
+            if (armL) armL.rotation.set(0, 0, 0);
           }
         }
       }
