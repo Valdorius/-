@@ -69,100 +69,9 @@ export function createEffects(engine){
     impacts.push({ mesh:m, t:0.12 });
   }
 
-  // Procedural tapered crescent slash geometry (thick in middle, razor sharp at tips)
-  function createTaperedCrescentGeo({ radius = 1.32, arc = Math.PI * 0.72, maxHalfWidth = 0.22, segments = 28 } = {}) {
-    const positions = [];
-    const colors = [];
-    const indices = [];
-
-    const startAngle = -arc * 0.5;
-    const angleStep = arc / segments;
-
-    for (let i = 0; i <= segments; i++) {
-      const u = i / segments; // 0 (start tip) to 1 (end tip)
-      const theta = startAngle + i * angleStep;
-
-      // Envelope: 0 at tips, 1 at center (broad glowing body, needle-sharp ends)
-      const envelope = Math.pow(Math.sin(u * Math.PI), 0.72);
-      const halfWidth = maxHalfWidth * envelope;
-
-      const rInner = radius - halfWidth * 0.42;
-      const rOuter = radius + halfWidth * 0.58;
-
-      const cosT = Math.cos(theta);
-      const sinT = Math.sin(theta);
-
-      // Inner vertex
-      positions.push(cosT * rInner, sinT * rInner, 0);
-      // Outer vertex (cutting edge)
-      positions.push(cosT * rOuter, sinT * rOuter, 0);
-
-      // Color gradient:
-      // Outer edge is incandescent white-cyan (0.88, 1.0, 1.0)
-      // Inner edge is rich ethereal cyan (0.04, 0.62, 0.95)
-      // Tips fade cleanly to zero
-      const tipFade = Math.sin(u * Math.PI);
-      colors.push(0.04 * tipFade, 0.62 * tipFade, 0.95 * tipFade); // inner
-      colors.push(0.88 * tipFade, 1.00 * tipFade, 1.00 * tipFade); // outer edge
-
-      if (i < segments) {
-        const base = i * 2;
-        indices.push(base, base + 1, base + 2);
-        indices.push(base + 1, base + 3, base + 2);
-      }
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geo.setIndex(indices);
-    return geo;
-  }
-
-  const slashGeo0 = createTaperedCrescentGeo({ radius: 1.30, arc: Math.PI * 0.74, maxHalfWidth: 0.20 });
-  const slashGeo1 = createTaperedCrescentGeo({ radius: 1.30, arc: Math.PI * 0.70, maxHalfWidth: 0.20 });
-  const slashGeo2 = createTaperedCrescentGeo({ radius: 1.36, arc: Math.PI * 0.78, maxHalfWidth: 0.24 });
-
-  // First-person runic slash arc in the air following the blade path
-  function addSlashArc({ origin, dir, comboStep=0, color=0x00f5ff }){
-    let geo = slashGeo0;
-    let sweepDir = -1;
-    let tiltZ = 0.08;
-
-    if (comboStep === 0) {
-      // Horizontal sweep right-to-left
-      geo = slashGeo0;
-      sweepDir = -1;
-      tiltZ = 0.08;
-    } else if (comboStep === 1) {
-      // Diagonal upward cut left-to-right
-      geo = slashGeo1;
-      sweepDir = 1;
-      tiltZ = Math.PI * 0.66;
-    } else {
-      // Vertical overhead execution chop
-      geo = slashGeo2;
-      sweepDir = -1;
-      tiltZ = Math.PI * 0.50;
-    }
-
-    const mat = new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.95,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending
-    });
-    const m = new THREE.Mesh(geo, mat);
-
-    // Place 1.25m in front of camera
-    m.position.copy(origin).addScaledVector(dir, 1.25);
-    m.lookAt(origin); // face player
-    m.rotation.z += tiltZ;
-
-    scene.add(m);
-    trails.push({ mesh: m, t: 0.14, t0: 0.14, isSlash: true, sweepDir });
+  // Optional stub for compatibility
+  function addSlashArc(){
+    // Replaced by physical dynamic blade ribbon trail in weapons.js
   }
 
   // Visible melee swing helper (arc sector on the ground) for readability.
@@ -240,24 +149,11 @@ export function createEffects(engine){
       tr.t -= dt;
       if (tr.mesh){
         const k = clamp(tr.t / tr.t0, 0, 1);
-        if (tr.isSlash) {
-          // Sharp attack, quick smooth fade-out
-          tr.mesh.material.opacity = 0.95 * Math.sin(k * Math.PI);
-          // Rapidly expands outward as the energy dissipates
-          const grow = 0.96 + (1.0 - k) * 0.28;
-          tr.mesh.scale.set(grow, grow, grow);
-          // Dynamic sweep along the blade path
-          if (tr.sweepDir) {
-            tr.mesh.rotation.z += tr.sweepDir * dt * 4.2;
-          }
-        } else {
-          tr.mesh.material.opacity = 0.38 * k;
-          tr.mesh.scale.setScalar(1.0 + (1.0-k)*0.05);
-        }
+        tr.mesh.material.opacity = 0.38 * k;
+        tr.mesh.scale.setScalar(1.0 + (1.0-k)*0.05);
       }
       if (tr.t<=0){
         if (tr.mesh && tr.mesh.parent) tr.mesh.parent.remove(tr.mesh);
-        if (tr.mesh && tr.mesh.material && tr.isSlash) tr.mesh.material.dispose();
         trails.splice(i,1);
       }
     }
