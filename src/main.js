@@ -1,15 +1,15 @@
-import { createEngine } from "./core/engine.js";
-import { createInput } from "./core/input.js";
-import { clamp } from "./core/math.js";
-import { createHUD } from "./game/hud.js";
-import { createAudio } from "./game/audio.js";
-import { createWorld } from "./game/world.js";
-import { createPlayer } from "./game/player.js";
-import { createWeapons } from "./game/weapons.js";
-import { createEnemies } from "./game/enemies.js";
-import { createProjectiles } from "./game/projectiles.js";
-import { createEffects } from "./game/effects.js";
-import { createProgression } from "./game/progression.js";
+import { createEngine } from "./core/engine.js?v=20261029_3";
+import { createInput } from "./core/input.js?v=20261029_3";
+import { clamp } from "./core/math.js?v=20261029_3";
+import { createHUD } from "./game/hud.js?v=20261029_3";
+import { createAudio } from "./game/audio.js?v=20261029_3";
+import { createWorld } from "./game/world.js?v=20261029_3";
+import { createPlayer } from "./game/player.js?v=20261029_3";
+import { createWeapons } from "./game/weapons.js?v=20261029_3";
+import { createEnemies } from "./game/enemies.js?v=20261029_3";
+import { createProjectiles } from "./game/projectiles.js?v=20261029_3";
+import { createEffects } from "./game/effects.js?v=20261029_3";
+import { createProgression } from "./game/progression.js?v=20261029_3";
 
 const canvas = document.getElementById("c");
 const engine = createEngine(canvas);

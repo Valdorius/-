@@ -18,24 +18,14 @@ export function createPortals({ scene }) {
     return { x: Math.cos(ang) * HEX_R, z: Math.sin(ang) * HEX_R };
   }
 
-  // Choose ONE wall segment: between vertex 4 and 5 (bottom-right wall)
-  const A = hexPt(4);
-  const B = hexPt(5);
+  const segments = [
+    [0, 1], // top-right wall
+    [2, 3], // left wall
+    [4, 5], // bottom wall
+  ];
 
-  const vx = B.x - A.x;
-  const vz = B.z - A.z;
-  const vlen = Math.hypot(vx, vz) || 1;
-  const tx = vx / vlen, tz = vz / vlen;
-
-  // Perp normal (candidate)
-  let nx = -tz, nz = tx;
-  // Ensure it points inward (towards center 0,0)
-  const mx = (A.x + B.x) * 0.5;
-  const mz = (A.z + B.z) * 0.5;
-  if (nx * (-mx) + nz * (-mz) < 0) { nx = -nx; nz = -nz; }
-
-  const PORTAL_COUNT = 3;
-  const PORTAL_INSET = 2.2;  // push portal inside arena from the wall
+  const PORTALS_PER_WALL = 2;
+  const PORTAL_INSET = 2.8;  // push portal inside arena from the wall
   const PORTAL_Y = 2.0;
   const PORTAL_R = 1.55;
 
@@ -68,51 +58,65 @@ export function createPortals({ scene }) {
     side: THREE.DoubleSide
   });
 
-  for (let i = 0; i < PORTAL_COUNT; i++) {
-    const t = (i + 1) / (PORTAL_COUNT + 1);
-    const px = A.x + vx * t + nx * PORTAL_INSET;
-    const pz = A.z + vz * t + nz * PORTAL_INSET;
+  for (const [idxA, idxB] of segments) {
+    const A = hexPt(idxA);
+    const B = hexPt(idxB);
 
-    const root = new THREE.Group();
-    root.position.set(px, PORTAL_Y, pz);
-    // face inward; forward (+Z) points inward after this rotation
-    root.rotation.y = Math.atan2(nx, nz);
+    const vx = B.x - A.x;
+    const vz = B.z - A.z;
+    const vlen = Math.hypot(vx, vz) || 1;
+    const tx = vx / vlen, tz = vz / vlen;
 
-    const ring = new THREE.Mesh(ringGeo, baseRingMat.clone());
-    ring.rotation.x = Math.PI / 2; // keep torus vertical
-    root.add(ring);
+    let nx = -tz, nz = tx;
+    const mx = (A.x + B.x) * 0.5;
+    const mz = (A.z + B.z) * 0.5;
+    if (nx * (-mx) + nz * (-mz) < 0) { nx = -nx; nz = -nz; }
 
-    const disk = new THREE.Mesh(diskGeo, baseDiskMat.clone());
-    disk.position.z = 0.05;
-    root.add(disk);
+    for (let i = 0; i < PORTALS_PER_WALL; i++) {
+      const t = (i + 1) / (PORTALS_PER_WALL + 1);
+      const px = A.x + vx * t + nx * PORTAL_INSET;
+      const pz = A.z + vz * t + nz * PORTAL_INSET;
 
-    const shards = [];
-    for (let k = 0; k < 5; k++) {
-      const s = new THREE.Mesh(shardGeo, baseShardMat.clone());
-      const ang = (k / 5) * Math.PI * 2;
-      s.position.set(Math.cos(ang) * 0.85, 0, Math.sin(ang) * 0.15);
-      s.rotation.y = ang;
-      s.rotation.x = (k % 2 ? 0.25 : -0.25);
-      s.scale.setScalar(0.9 + 0.25 * Math.random());
-      root.add(s);
-      shards.push(s);
+      const root = new THREE.Group();
+      root.position.set(px, PORTAL_Y, pz);
+      root.rotation.y = Math.atan2(nx, nz);
+
+      const ring = new THREE.Mesh(ringGeo, baseRingMat.clone());
+      ring.rotation.x = Math.PI / 2; // keep torus vertical
+      root.add(ring);
+
+      const disk = new THREE.Mesh(diskGeo, baseDiskMat.clone());
+      disk.position.z = 0.05;
+      root.add(disk);
+
+      const shards = [];
+      for (let k = 0; k < 5; k++) {
+        const s = new THREE.Mesh(shardGeo, baseShardMat.clone());
+        const ang = (k / 5) * Math.PI * 2;
+        s.position.set(Math.cos(ang) * 0.85, 0, Math.sin(ang) * 0.15);
+        s.rotation.y = ang;
+        s.rotation.x = (k % 2 ? 0.25 : -0.25);
+        s.scale.setScalar(0.9 + 0.25 * Math.random());
+        root.add(s);
+        shards.push(s);
+      }
+
+      const light = new THREE.PointLight(0x2aa7ff, 0.75, 9.0, 2.0);
+      light.position.set(0, 0, 0.4);
+      root.add(light);
+
+      group.add(root);
+
+      const forward = new THREE.Vector3(Math.sin(root.rotation.y), 0, Math.cos(root.rotation.y));
+      const right = new THREE.Vector3(forward.z, 0, -forward.x);
+
+      portals.push({
+        pos: new THREE.Vector3(px, 0, pz),
+        root, ring, disk, shards, light,
+        forward, right,
+        t: Math.random() * 10
+      });
     }
-
-    const light = new THREE.PointLight(0x2aa7ff, 0.75, 9.0, 2.0);
-    light.position.set(0, 0, 0.4);
-    root.add(light);
-
-    group.add(root);
-
-    const forward = new THREE.Vector3(Math.sin(root.rotation.y), 0, Math.cos(root.rotation.y));
-    const right = new THREE.Vector3(forward.z, 0, -forward.x);
-
-    portals.push({
-      pos: new THREE.Vector3(px, 0, pz),
-      root, ring, disk, shards, light,
-      forward, right,
-      t: Math.random() * 10
-    });
   }
 
   let seq = 0;

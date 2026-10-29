@@ -1,12 +1,12 @@
 import * as THREE from "three";
-import { loadVOX } from "./vox_loader.js";
+import { loadVOX } from "./vox_loader.js?v=20261029_3";
 
 /**
  * VOX registry.
  * Important: never "blank" a character until VOX is actually loaded.
  * This prevents invisible enemies when a VOX fails to parse/load.
  */
-const V = "20261029_2";
+const V = "20261029_3";
 
 export const VOX_MODELS = {
   // 32x32x32 models → voxelSize 0.056 = ~1.8m tall
@@ -59,6 +59,9 @@ export function attachVOXSkin(group, key, opts={}) {
     }
 
     mesh.name = `${key}_VOX`;
+    // Inherit layers and visibility of target group
+    mesh.layers.mask = group.layers.mask;
+    if (group.visible === false) mesh.visible = false;
 
     if (replace) {
       const toRemove = [];

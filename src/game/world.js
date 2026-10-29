@@ -275,5 +275,5 @@ export function createWorld(engine){
     }
   }
 
-  return { group, bounds, resolveCircle };
+  return { group, bounds, resolveCircle, circles };
 }

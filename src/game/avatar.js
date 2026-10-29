@@ -18,9 +18,10 @@ export function createVoxelAvatar({
 } = {}) {
 
   const g = new THREE.Group();
-  attachVOXSkin(g, "player");
   g.name = "VoxelAvatar";
-  g.layers.set(2); // hide from local FPS camera by default
+  g.visible = false; // hidden from local first-person camera by default
+  g.layers.set(2);
+  attachVOXSkin(g, "player");
 
   // Shared geometries
   const box = new THREE.BoxGeometry(1, 1, 1);

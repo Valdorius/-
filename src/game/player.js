@@ -38,12 +38,11 @@ export function createPlayer({ engine, input, world, progression=null }) {
   scene.add(bodyRoot);
 
   // --- Third-person voxel avatar (for future multiplayer) ---
-  // IMPORTANT: attached to yaw (not pitch/camera) so it cannot break weapon/camera animations.
+  // IMPORTANT: hidden from local FPS camera so it never appears under feet / in front of camera
   const avatar = createVoxelAvatar();
+  avatar.root.visible = false;
   yaw.add(avatar.root);
-  // Keep avatar feet on player origin; minor forward offset so it doesn't clip camera near plane if ever enabled.
   avatar.root.position.set(0, 0, 0);
-  // Ensure local FPS camera does NOT render avatar layer unless explicitly enabled.
   camera.layers.disable(2);
 
 
@@ -158,7 +157,10 @@ export function createPlayer({ engine, input, world, progression=null }) {
     // Third-person voxel avatar (hidden from local FPS camera by default via layers)
     avatar,
     // Enable/disable rendering of avatars (layer 2) on this camera.
-    showAvatars(v=true){ v ? camera.layers.enable(2) : camera.layers.disable(2); },
+    showAvatars(v=true){
+      avatar.root.visible = !!v;
+      v ? camera.layers.enable(2) : camera.layers.disable(2);
+    },
 
     // Pose snapshot for future multiplayer sync
     getPose(){

@@ -4,8 +4,8 @@
 // applyDamage(id,dmg,meta) and damage(...) alias returning {killed,xp}
 
 import * as THREE from "three";
-import { attachVOXSkin } from "../models/vox_registry.js";
-import { createPortals } from "./portals.js";
+import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_3";
+import { createPortals } from "./portals.js?v=20261029_3";
 
 export function createEnemies(ctx) {
   const scene = ctx.scene || ctx.engine?.scene || ctx.engine?.getScene?.();
@@ -196,6 +196,11 @@ function randomSpawnFromPortal(portalsCtrl, world) {
   const fallback = randomSpawnPosFallback();
   if (!portalsCtrl || !portalsCtrl.nextSpawnPos) return fallback;
 
+  // In early wave 1, mix in visible spawns so combat begins quickly and arena feels active
+  if (wave === 1 && Math.random() < 0.5) {
+    return fallback;
+  }
+
   const out = portalsCtrl.nextSpawnPos(rand);
   if (!out || !out.pos) return fallback;
 
@@ -211,11 +216,9 @@ function randomSpawnFromPortal(portalsCtrl, world) {
 }
 
 function randomSpawnPosFallback() {
-  // Spawn around arena center (fallback if portals aren't built)
+  // Spawn around arena center (in clear sight of player)
   const ang = Math.random() * Math.PI * 2;
-  const baseMax = 7.5;
-  const extra = Math.min(6.0, Math.max(0, wave - 1) * 0.35);
-  const dist = rand(1.8, baseMax + extra);
+  const dist = rand(10.0, 18.0);
   const pos = new THREE.Vector3(Math.cos(ang) * dist, 0, Math.sin(ang) * dist);
   pos.x = clamp(pos.x, world.bounds.minX + 1.2, world.bounds.maxX - 1.2);
   pos.z = clamp(pos.z, world.bounds.minZ + 1.2, world.bounds.maxZ - 1.2);
@@ -1762,6 +1765,22 @@ if (e.burnT > 0){
         // melee / boss approach
         dirx += ax * 0.45;
         dirz += az * 0.45;
+      }
+
+      // Column / pillar obstacle avoidance so enemies never get stuck
+      if (world?.circles) {
+        for (const c of world.circles) {
+          const dx = e.root.position.x - c.x;
+          const dz = e.root.position.z - c.z;
+          const d2 = dx * dx + dz * dz;
+          const reach = e.radius + c.r + 1.4;
+          if (d2 < reach * reach && d2 > 1e-4) {
+            const d = Math.sqrt(d2);
+            const push = (1 - d / reach);
+            dirx += (dx / d) * push * 1.5;
+            dirz += (dz / d) * push * 1.5;
+          }
+        }
       }
 
       const dlen = Math.sqrt(dirx*dirx + dirz*dirz) || 1e-6;
