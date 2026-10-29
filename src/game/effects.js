@@ -96,18 +96,18 @@ export function createEffects(engine){
     trails.push({ mesh:m, t:life, t0:life });
   }
 
-  // quick ground shockwave (for melee kills / feedback)
-  function addShockwave(pos, strength=1){
-    const geo = new THREE.RingGeometry(0.15, 0.35, 20);
+  // quick ground shockwave (for melee ground slams / boss shockwaves)
+  function addShockwave(pos, strength=1, color=0xffaa33){
+    const geo = new THREE.RingGeometry(0.20, 0.48, 28);
     const mat = new THREE.MeshBasicMaterial({
-      color: 0xffffff, transparent:true, opacity:0.55, depthWrite:false, side:THREE.DoubleSide
+      color, transparent:true, opacity:0.65, depthWrite:false, side:THREE.DoubleSide
     });
     const m = new THREE.Mesh(geo, mat);
     m.rotation.x = -Math.PI/2;
     m.position.copy(pos);
-    m.position.y += 0.02;
+    m.position.y += 0.03;
     scene.add(m);
-    particles.push({ mesh:m, vel: new THREE.Vector3(0,0,0), t:0.28, kind:"shock", grow: 3.2*strength, t0:0.28 });
+    particles.push({ mesh:m, vel: new THREE.Vector3(0,0,0), t:0.35, kind:"shock", grow: 2.6*strength, t0:0.35 });
   }
 
   // shatter burst (for ranged kills / readability)
@@ -162,17 +162,19 @@ export function createEffects(engine){
       const p = particles[i];
       p.t -= dt;
       if (p.mesh){
-        p.vel.y -= 12.0*dt;
-        p.mesh.position.addScaledVector(p.vel, dt);
         const denom = (p.t0 || 0.26);
         p.mesh.material.opacity = clamp(p.t/denom, 0, 1);
         if (p.kind === "shock"){
           const k = clamp(1 - p.t/(p.t0||0.28), 0, 1);
           const g = (p.grow || 3.0);
           p.mesh.scale.setScalar(1 + k*g);
+          // Ground shockwave: strictly stays flat on the floor plane, no tumbling rotation, no gravity!
+        } else {
+          p.vel.y -= 12.0*dt;
+          p.mesh.position.addScaledVector(p.vel, dt);
+          p.mesh.rotation.x += dt*8.0;
+          p.mesh.rotation.y += dt*10.0;
         }
-        p.mesh.rotation.x += dt*8.0;
-        p.mesh.rotation.y += dt*10.0;
       }
       if (p.t<=0){
         if (p.mesh && p.mesh.parent) p.mesh.parent.remove(p.mesh);

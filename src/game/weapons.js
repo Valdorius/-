@@ -283,22 +283,22 @@ let cd = 0,
       });
       hammerAnim.coreMat = runeMat;
 
-      // 1. Древко молота: толстое, усиленное боевое бревно
-      const SHAFT_LEN = 1.35;
+      // 1. Древко молота: массивное удлинённое двуручное боевое бревно
+      const SHAFT_LEN = 1.65;
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.056, SHAFT_LEN, 8), darkWood);
       shaft.rotation.x = Math.PI / 2;
-      shaft.position.set(0, 0.02, -0.15);
+      shaft.position.set(0, 0.02, -0.32);
       g.add(shaft);
 
       // Стальные лангеты (продольные шины вдоль древка)
-      const langetTop = box(0.022, 0.016, 0.55, 0, 0.075, -0.42, darkSteel);
-      const langetBot = box(0.022, 0.016, 0.55, 0, -0.035, -0.42, darkSteel);
-      const langetLeft = box(0.016, 0.022, 0.55, -0.058, 0.02, -0.42, darkSteel);
-      const langetRight = box(0.016, 0.022, 0.55, 0.058, 0.02, -0.42, darkSteel);
+      const langetTop = box(0.022, 0.016, 0.65, 0, 0.075, -0.68, darkSteel);
+      const langetBot = box(0.022, 0.016, 0.65, 0, -0.035, -0.68, darkSteel);
+      const langetLeft = box(0.016, 0.022, 0.65, -0.058, 0.02, -0.68, darkSteel);
+      const langetRight = box(0.016, 0.022, 0.65, 0.058, 0.02, -0.68, darkSteel);
       g.add(langetTop, langetBot, langetLeft, langetRight);
 
       // Крепежные стальные кольца с заклепками
-      for (const rz of [-0.22, -0.45, -0.68]) {
+      for (const rz of [-0.35, -0.65, -0.92]) {
         const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.036, 8), darkSteel);
         ring.rotation.x = Math.PI / 2;
         ring.position.set(0, 0.02, rz);
@@ -308,33 +308,33 @@ let cd = 0,
       // 2. Двойной кожаный хват для двух рук
       const gripFront = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.32, 8), wrap);
       gripFront.rotation.x = Math.PI / 2;
-      gripFront.position.set(0, 0.02, 0.02);
+      gripFront.position.set(0, 0.02, 0.06);
       g.add(gripFront);
 
       const gripRear = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.28, 8), wrap);
       gripRear.rotation.x = Math.PI / 2;
-      gripRear.position.set(0, 0.02, 0.40);
+      gripRear.position.set(0, 0.02, 0.42);
       g.add(gripRear);
 
       // 3. Массивный противовес-яблоко (heavy faceted pommel)
       const pommel = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.065, 0.14, 8), darkSteel);
       pommel.rotation.x = Math.PI / 2;
-      pommel.position.set(0, 0.02, 0.58);
+      pommel.position.set(0, 0.02, 0.60);
       g.add(pommel);
 
       const pommelRing = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.016, 8, 16), steel);
-      pommelRing.position.set(0, 0.02, 0.68);
+      pommelRing.position.set(0, 0.02, 0.70);
       g.add(pommelRing);
 
       // 4. Посадочная втулка и воротник молота
       const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.090, 0.18, 8), darkSteel);
       collar.rotation.x = Math.PI / 2;
-      collar.position.set(0, 0.02, -0.74);
+      collar.position.set(0, 0.02, -1.06);
       g.add(collar);
 
       // 5. МОНОЛИТНАЯ ГОЛОВА РУНИЧЕСКОГО МОЛОТА (Massive Hammer Head)
       const headGroup = new THREE.Group();
-      headGroup.position.set(0, 0.02, -0.85);
+      headGroup.position.set(0, 0.02, -1.22);
 
       // Центральный стальной сердечник
       headGroup.add(box(0.24, 0.22, 0.30, 0, 0, 0, darkSteel));
@@ -374,15 +374,15 @@ let cd = 0,
       headGroup.add(box(0.254, 0.02, 0.05, 0, -0.05, -0.06, runeMat));
 
       // Разворот головы молота для идеального обзора от первого лица
-      headGroup.rotation.z = Math.PI * 0.18;
+      headGroup.rotation.z = Math.PI * 0.20;
       g.add(headGroup);
 
-      g.scale.set(1.42, 1.42, 1.42);
+      g.scale.set(1.46, 1.46, 1.46);
       model.add(g);
 
-      // Боевая стойка молота от первого лица: массивный боёк виден справа внизу
-      model.rotation.set(-0.10, 0.16, -0.16);
-      model.position.set(0.18, -0.08, 0.30);
+      // Боевая стойка молота от первого лица: массивный боёк виден спереди-справа
+      model.rotation.set(-0.07, 0.12, -0.15);
+      model.position.set(0.14, -0.07, 0.18);
     }
 
     if (w === "bow") {
@@ -919,98 +919,98 @@ let cd = 0,
   }
 
   function animateHammerSwing(p) {
-    if (p < 0.24) {
-      // Замах назад и вправо: поднимаем тяжелый молот
-      const t = p / 0.24;
+    if (p < 0.22) {
+      // Фаза 1: Мощный замах назад и вправо через правое плечо
+      const t = p / 0.22;
       const k = t * t * (3 - 2 * t);
       hand.position.set(
-        baseHandPos.x + 0.05 * k,
-        baseHandPos.y + 0.06 * k,
-        baseHandPos.z + 0.06 * k
+        baseHandPos.x + 0.08 * k,
+        baseHandPos.y + 0.08 * k,
+        baseHandPos.z + 0.08 * k
       );
       hand.rotation.set(
-        baseHandRot.x - 0.28 * k,
-        baseHandRot.y + 0.65 * k,
-        baseHandRot.z + 0.32 * k
+        baseHandRot.x - 0.18 * k,
+        baseHandRot.y - 0.75 * k,
+        baseHandRot.z - 0.28 * k
       );
-    } else if (p < 0.58) {
-      // Сокрушительный рубящий пронос справа налево через прицел с легким наклоном вниз
-      const t = (p - 0.24) / 0.34;
+    } else if (p < 0.60) {
+      // Фаза 2: Сокрушительный рубящий пронос справа налево строго через центр и перекрестие
+      const t = (p - 0.22) / 0.38;
       const k = t * t * (3 - 2 * t);
-      const fwd = Math.sin(t * Math.PI) * 0.08;
+      const fwd = Math.sin(t * Math.PI) * 0.14;
       hand.position.set(
-        baseHandPos.x + 0.05 - 0.16 * k,
-        baseHandPos.y + 0.06 - 0.08 * k,
-        baseHandPos.z + 0.06 - fwd
+        baseHandPos.x + 0.08 - 0.42 * k,
+        baseHandPos.y + 0.08 - 0.06 * k,
+        baseHandPos.z + 0.08 - fwd
       );
       hand.rotation.set(
-        baseHandRot.x - 0.28 + 0.35 * k,
-        baseHandRot.y + 0.65 - 1.55 * k,
-        baseHandRot.z + 0.32 - 0.90 * k
+        baseHandRot.x - 0.18 + 0.36 * k,
+        baseHandRot.y - 0.75 + 1.95 * k,
+        baseHandRot.z - 0.28 + 0.85 * k
       );
     } else {
-      // Инерционное торможение и возврат в стойку
-      const t = (p - 0.58) / 0.42;
+      // Фаза 3: Инерционное торможение на левой стороне и плавный возврат в боевую стойку
+      const t = (p - 0.60) / 0.40;
       const k = 1 - t * (2 - t);
       hand.position.set(
-        baseHandPos.x - 0.11 * k,
-        baseHandPos.y - 0.02 * k,
+        baseHandPos.x - 0.34 * k,
+        baseHandPos.y + 0.02 * k,
         baseHandPos.z
       );
       hand.rotation.set(
-        baseHandRot.x + 0.07 * k,
-        baseHandRot.y - 0.90 * k,
-        baseHandRot.z - 0.58 * k
+        baseHandRot.x + 0.18 * k,
+        baseHandRot.y + 1.20 * k,
+        baseHandRot.z + 0.57 * k
       );
     }
   }
 
   function animateHammerSlam(p) {
-    if (p < 0.50) {
-      // Подъем молота высоко над головой
-      const t = p / 0.50;
+    if (p < 0.48) {
+      // Фаза 1: Подъем молота двумя руками строго по центру высоко над головой
+      const t = p / 0.48;
       const k = t * t * (3 - 2 * t);
       hand.position.set(
-        baseHandPos.x - 0.22 * k,
-        baseHandPos.y + 0.36 * k,
-        baseHandPos.z + 0.05 * k
+        baseHandPos.x - 0.30 * k,
+        baseHandPos.y + 0.46 * k,
+        baseHandPos.z + 0.08 * k
       );
       hand.rotation.set(
-        baseHandRot.x - 0.72 * k,
+        baseHandRot.x - 0.95 * k,
         baseHandRot.y * (1 - k),
-        baseHandRot.z + 0.12 * k
+        baseHandRot.z * (1 - k)
       );
       if (hammerAnim.coreMat) {
-        hammerAnim.coreMat.emissiveIntensity = 2.2 + 2.0 * k;
+        hammerAnim.coreMat.emissiveIntensity = 2.2 + 3.2 * k;
       }
-    } else if (p < 0.64) {
-      // Яростное падение прямо оземь
-      const t = (p - 0.50) / 0.14;
+    } else if (p < 0.62) {
+      // Фаза 2: Яростное сокрушительное обрушение молота вертикально в землю прямо по центру
+      const t = (p - 0.48) / 0.14;
       const k = t * t;
       hand.position.set(
-        baseHandPos.x - 0.22 + 0.08 * k,
-        baseHandPos.y + 0.36 - 0.54 * k,
-        baseHandPos.z + 0.05 - 0.18 * k
+        baseHandPos.x - 0.30,
+        baseHandPos.y + 0.46 - 0.72 * k,
+        baseHandPos.z + 0.08 - 0.24 * k
       );
       hand.rotation.set(
-        baseHandRot.x - 0.72 + 1.55 * k,
+        baseHandRot.x - 0.95 + 2.05 * k,
         0,
-        baseHandRot.z + 0.12 - 0.12 * k
+        0
       );
     } else {
-      // Микро-отскок и подъем молота с пола
-      const t = (p - 0.64) / 0.36;
+      // Фаза 3: Отскок от удара о землю, вибрация и подъем обратно в исходную стойку
+      const t = (p - 0.62) / 0.38;
       const k = 1 - t * (2 - t);
       const bounce = Math.sin(t * Math.PI) * 0.04;
       hand.position.set(
-        baseHandPos.x - 0.14 * k,
-        baseHandPos.y - 0.18 * k + bounce,
-        baseHandPos.z - 0.13 * k
+        baseHandPos.x - 0.30 * k,
+        baseHandPos.y - 0.26 * k + bounce,
+        baseHandPos.z - 0.16 * k
       );
       hand.rotation.set(
-        baseHandRot.x + 0.83 * k,
-        0,
-        baseHandRot.z
+        baseHandRot.x + 1.10 * k,
+        baseHandRot.y * (1 - k),
+        baseHandRot.z * (1 - k)
       );
       if (hammerAnim.coreMat) {
         hammerAnim.coreMat.emissiveIntensity = 2.2;
@@ -1019,7 +1019,8 @@ let cd = 0,
   }
 
   function executeHammerGroundSlam() {
-    camImpulseX = 0.065;
+    camImpulseX = 0.075;
+    camImpulseZ = (Math.random() - 0.5) * 0.03;
     const origin = new THREE.Vector3();
     camera.getWorldPosition(origin);
     const fwd = new THREE.Vector3();
@@ -1028,13 +1029,16 @@ let cd = 0,
     fwd.normalize();
 
     const slamPos = origin.clone().addScaledVector(fwd, 2.2);
-    slamPos.y = 0.05;
+    const groundY = (typeof world?.getGroundY === "function")
+      ? world.getGroundY(slamPos.x, slamPos.z)
+      : (player?.pos?.y ?? 0.0);
+    slamPos.y = groundY + 0.03;
 
     const st = getStats();
     const radiusMul = st?.hammerSlamRadiusMul ?? 1.0;
     const slamRadius = 4.5 * radiusMul;
 
-    fx?.addShockwave?.(slamPos, 2.8 * radiusMul);
+    fx?.addShockwave?.(slamPos, 2.8 * radiusMul, 0xffaa22);
     fx?.addShatter?.(slamPos, 2.5, 0xd49b45);
 
     if (lastEnemiesRef && typeof lastEnemiesRef.forEachInRadius === "function") {
@@ -1138,7 +1142,7 @@ let cd = 0,
         hammerSlamT -= dt;
         const p = 1 - hammerSlamT / hammerSlamMax;
         animateHammerSlam(p);
-        if (!hammerSlamHitTriggered && p >= 0.50) {
+        if (!hammerSlamHitTriggered && p >= 0.54) {
           hammerSlamHitTriggered = true;
           executeHammerGroundSlam();
         }
@@ -1272,7 +1276,7 @@ let cd = 0,
     if (weapon === "hammer") {
       if (hammerSwingT <= 0) return;
       const p = 1 - hammerSwingT / hammerSwingMax;
-      if (p < 0.24 || p > 0.58) return;
+      if (p < 0.22 || p > 0.60) return;
 
       const origin = new THREE.Vector3();
       camera.getWorldPosition(origin);
