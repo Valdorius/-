@@ -10,7 +10,7 @@
   <title>Voxel Arena</title>
   <script>
     (function() {
-      const V = "20261030_01";
+      const V = "20261030_02";
       const u = new URL(window.location.href);
       if (u.searchParams.get("v") !== V) {
         u.searchParams.set("v", V);
@@ -43,11 +43,11 @@
       background:radial-gradient(80% 80% at 50% 30%, rgba(40,60,110,.35), rgba(0,0,0,.85));
     }
     #pick .panel{
-      width:min(880px,92vw);border-radius:18px;padding:16px 16px 14px;
+      width:min(960px,94vw);border-radius:18px;padding:16px 16px 14px;
       background:rgba(10,14,22,.72);border:1px solid rgba(255,255,255,.14);
     }
     #pick h2{margin:0 0 10px 0;font-size:18px}
-    #cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    #cards{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px}
     .card{padding:12px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);cursor:pointer}
     .card:hover{background:rgba(255,255,255,.08)}
     .card.selected{outline:2px solid rgba(255,255,255,.55); background:rgba(255,255,255,.10)}
@@ -137,7 +137,7 @@
     <div class="panel">
       <h2>Выбери оружие</h2>
       <div id="cards"></div>
-      <div class="muted" style="margin-top:10px">Можно поменять позже (сделаем дроп/смену после босса).</div>
+      <div class="muted" style="margin-top:10px">Быстрое переключение во время боя: клавиши <kbd>1</kbd> Глефа, <kbd>2</kbd> Молот, <kbd>3</kbd> Лук, <kbd>4</kbd> Посох.</div>
     </div>
   </div>
 
@@ -152,6 +152,6 @@
 
   
 
-  <script type="module" src="./src/main.js?v=20261030_01"></script>
+  <script type="module" src="./src/main.js?v=20261030_02"></script>
 </body>
 </html>

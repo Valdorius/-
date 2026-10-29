@@ -24,6 +24,10 @@ export function createProgression({ player, hud, weapons, audio=null }){
     spearAttackSpeedMul: 1.0,
     spearReachMul: 1.0,
     spearArcMul: 1.0,
+    hammerDamageMul: 1.0,
+    hammerAttackSpeedMul: 1.0,
+    hammerSlamRadiusMul: 1.0,
+    hammerStunBonus: 0.0,
     staffDamageMul: 1.0,
     staffAttackSpeedMul: 1.0,
     staffSplashMul: 1.0,
@@ -38,6 +42,7 @@ export function createProgression({ player, hud, weapons, audio=null }){
   // Отдельные "взятые" перки по оружию (чтобы магу не падали улучшения лука и т.п.)
   const takenByWeapon = {
     spear: new Set(),
+    hammer: new Set(),
     bow: new Set(),
     staff: new Set(),
   };
@@ -54,6 +59,15 @@ const PERKS_BY_WEAPON = {
     { id:"sp_guard",title:"Копьё: Стойкость", desc:"+25 HP и полное лечение.", apply(){ stats.maxHpBonus += 25; player.hpMax += 25; player.hp = player.hpMax; } },
     { id:"sp_ms",   title:"Копьё: Рывок", desc:"+10% скорость передвижения.", apply(){ stats.moveSpeedMul *= 1.10; } },
     { id:"sp_parry",title:"Копьё: Контратака", desc:"Каждый 6-й удар копья наносит +60% урона.", apply(){ stats.spearHeavyEvery = 6; stats.spearHeavyMul = 1.60; } },
+  ],
+  hammer: [
+    { id:"hm_dmg",  title:"Молот: +Урон", desc:"+22% к урону молота.", apply(){ stats.hammerDamageMul = (stats.hammerDamageMul||1)*1.22; } },
+    { id:"hm_as",   title:"Молот: Инерция", desc:"+16% к скорости взмахов молота.", apply(){ stats.hammerAttackSpeedMul = (stats.hammerAttackSpeedMul||1)*1.16; } },
+    { id:"hm_slam", title:"Молот: Разлом", desc:"+30% к радиусу землетрясения ПКМ.", apply(){ stats.hammerSlamRadiusMul = (stats.hammerSlamRadiusMul||1)*1.30; } },
+    { id:"hm_stun", title:"Молот: Контузия", desc:"+0.6 сек к длительности оглушения мобов.", apply(){ stats.hammerStunBonus = (stats.hammerStunBonus||0)+0.6; } },
+    { id:"hm_hp",   title:"Молот: Титан", desc:"+35 HP и полное лечение.", apply(){ stats.maxHpBonus += 35; player.hpMax += 35; player.hp = player.hpMax; } },
+    { id:"hm_shatter",title:"Молот: Дробитель", desc:"Ударная волна ПКМ мгновенно сбивает щиты и наносит +35% урона.", apply(){ stats.hammerShatterMul = (stats.hammerShatterMul||1)*1.35; } },
+    { id:"hm_ms",   title:"Молот: Неудержимый", desc:"+10% скорость передвижения.", apply(){ stats.moveSpeedMul *= 1.10; } },
   ],
   bow: [
     { id:"bw_dmg",  title:"Лук: +Урон", desc:"+16% к урону лука.", apply(){ stats.bowDamageMul = (stats.bowDamageMul||1)*1.16; } },
@@ -83,6 +97,11 @@ const BOSS_LOOT_BY_WEAPON = {
     { id:"sp_relic_impale",title:"Реликвия: Пронзание", desc:"Каждый 4-й удар копья пробивает и наносит +80% урона.", apply(){ stats.spearImpaleEvery = 4; stats.spearImpaleMul = 1.80; } },
     { id:"sp_relic_vamp",  title:"Реликвия: Кровопийца", desc:"Вампиризм 8% от урона копья.", apply(){ stats.spearLifesteal = (stats.spearLifesteal||0)+0.08; } },
     { id:"sp_relic_tough", title:"Реликвия: Железо", desc:"+60 HP и -8% скорость.", apply(){ stats.maxHpBonus += 60; player.hpMax += 60; player.hp = player.hpMax; stats.moveSpeedMul *= 0.92; } },
+  ],
+  hammer: [
+    { id:"hm_relic_quake", title:"Реликвия: Эпицентр", desc:"ПКМ наносит +75% урона в эпицентре и отбрасывает мобов на 4 метра.", apply(){ stats.hammerEpicenter = true; } },
+    { id:"hm_relic_vamp",  title:"Реликвия: Пожиратель", desc:"Вампиризм 10% от любого урона молота.", apply(){ stats.hammerLifesteal = (stats.hammerLifesteal||0)+0.10; } },
+    { id:"hm_relic_colossus", title:"Реликвия: Колосс", desc:"+70 HP и -6% скорость передвижения.", apply(){ stats.maxHpBonus += 70; player.hpMax += 70; player.hp = player.hpMax; stats.moveSpeedMul *= 0.94; } },
   ],
   bow: [
     { id:"bw_relic_multi", title:"Реликвия: Расщепление", desc:"Иногда выпускаешь 2 стрелы веером.", apply(){ stats.bowMultishot = (stats.bowMultishot||0)+1; } },

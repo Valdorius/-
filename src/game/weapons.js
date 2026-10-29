@@ -44,6 +44,11 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
     muzzle: null
   };
 
+  // refs for hammer viewmodel animation
+  const hammerAnim = {
+    coreMat: null
+  };
+
   function getStats(){
     return (progression && progression.stats) ? progression.stats : null;
   }
@@ -63,6 +68,20 @@ let cd = 0,
   let prevMouseDown = false;
   let spearHitSet = new Set();
 
+  // hammer state
+  let hammerSwingT = 0;
+  let hammerSwingMax = 0.52;
+  let hammerSwingImpulseFired = false;
+  let hammerHitSet = new Set();
+
+  let hammerSlamT = 0;
+  let hammerSlamMax = 0.70;
+  let hammerSlamCd = 0;
+  let hammerSlamHitTriggered = false;
+
+  let prevRightMouseDown = false;
+  let lastEnemiesRef = null;
+
   // camera micro-impulse / tilt for combat impact
   let camImpulseZ = 0; // roll
   let camImpulseX = 0; // pitch
@@ -76,6 +95,7 @@ let cd = 0,
 
   const defs = {
     spear: { name: "Руническая глефа", hint: "Ближний бой. Широкие рубящие свипы, диагональные срезы и сокрушительный вертикальный удар.", meleeRange: 3.3, dmg: 34, rate: 2.0, arc: 1.45 },
+    hammer: { name: "Рунический молот", hint: "Тяжелый сокрушитель. ЛКМ — размашистый сокрушительный свип (стан/нокаут). ПКМ — удар оземь (AoE-землетрясение).", meleeRange: 2.85, dmg: 58, rate: 1.25, arc: 2.30 },
     bow: { name: "Рунический лук", hint: "Дальний бой. Удерживай ЛКМ — натяжение и рунный заряд, отпусти — выстрел.", dmgMin: 22, dmgMax: 56, chargeTime: 0.85, speed: 24 },
     // Посох: медленный большой взрывной шар (чтобы читалось и было "опасно")
     staff: { name: "Посох", hint: "Магия. Медленная взрывная сфера с высоким уроном.", dmg: 34, rate: 1.35, speed: 9.0, splash: 2.20 }
@@ -239,6 +259,130 @@ let cd = 0,
       // Боевая диагональная стойка в руках от 1-го лица
       model.rotation.set(-0.08, 0.14, -0.18);
       model.position.set(0.18, -0.09, 0.32);
+    }
+
+    if (w === "hammer") {
+      const g = new THREE.Group();
+
+      const hammerWoodTex = createPixelWoodTexture();
+      hammerWoodTex.repeat.set(1, 8);
+
+      const darkWood = new THREE.MeshStandardMaterial({ map: hammerWoodTex, roughness: 0.88 });
+      const wrap = new THREE.MeshStandardMaterial({ color: 0x1c120c, roughness: 0.95 });
+      const steel = new THREE.MeshStandardMaterial({ color: 0xd8e4fc, roughness: 0.32, metalness: 0.65 });
+      const darkSteel = new THREE.MeshStandardMaterial({ color: 0x2e3746, roughness: 0.52, metalness: 0.55 });
+      const edgeSteel = new THREE.MeshStandardMaterial({ color: 0xf2f7ff, roughness: 0.18, metalness: 0.82 });
+
+      // Warm amber/gold runic glow (contrasts beautifully with cyan spear!)
+      const runeMat = new THREE.MeshStandardMaterial({
+        color: 0xff9900,
+        emissive: 0xff8800,
+        emissiveIntensity: 2.2,
+        roughness: 0.15,
+        metalness: 0.10
+      });
+      hammerAnim.coreMat = runeMat;
+
+      // 1. Древко молота: толстое, усиленное боевое бревно
+      const SHAFT_LEN = 1.35;
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.056, SHAFT_LEN, 8), darkWood);
+      shaft.rotation.x = Math.PI / 2;
+      shaft.position.set(0, 0.02, -0.15);
+      g.add(shaft);
+
+      // Стальные лангеты (продольные шины вдоль древка)
+      const langetTop = box(0.022, 0.016, 0.55, 0, 0.075, -0.42, darkSteel);
+      const langetBot = box(0.022, 0.016, 0.55, 0, -0.035, -0.42, darkSteel);
+      const langetLeft = box(0.016, 0.022, 0.55, -0.058, 0.02, -0.42, darkSteel);
+      const langetRight = box(0.016, 0.022, 0.55, 0.058, 0.02, -0.42, darkSteel);
+      g.add(langetTop, langetBot, langetLeft, langetRight);
+
+      // Крепежные стальные кольца с заклепками
+      for (const rz of [-0.22, -0.45, -0.68]) {
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.036, 8), darkSteel);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(0, 0.02, rz);
+        g.add(ring);
+      }
+
+      // 2. Двойной кожаный хват для двух рук
+      const gripFront = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.32, 8), wrap);
+      gripFront.rotation.x = Math.PI / 2;
+      gripFront.position.set(0, 0.02, 0.02);
+      g.add(gripFront);
+
+      const gripRear = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.28, 8), wrap);
+      gripRear.rotation.x = Math.PI / 2;
+      gripRear.position.set(0, 0.02, 0.40);
+      g.add(gripRear);
+
+      // 3. Массивный противовес-яблоко (heavy faceted pommel)
+      const pommel = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.065, 0.14, 8), darkSteel);
+      pommel.rotation.x = Math.PI / 2;
+      pommel.position.set(0, 0.02, 0.58);
+      g.add(pommel);
+
+      const pommelRing = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.016, 8, 16), steel);
+      pommelRing.position.set(0, 0.02, 0.68);
+      g.add(pommelRing);
+
+      // 4. Посадочная втулка и воротник молота
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.090, 0.18, 8), darkSteel);
+      collar.rotation.x = Math.PI / 2;
+      collar.position.set(0, 0.02, -0.74);
+      g.add(collar);
+
+      // 5. МОНОЛИТНАЯ ГОЛОВА РУНИЧЕСКОГО МОЛОТА (Massive Hammer Head)
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 0.02, -0.85);
+
+      // Центральный стальной сердечник
+      headGroup.add(box(0.24, 0.22, 0.30, 0, 0, 0, darkSteel));
+
+      // Главный передний ударный боёк (Square Crushing Face)
+      headGroup.add(box(0.22, 0.20, 0.08, 0, 0, -0.19, steel));
+      // Окантовка бойка
+      headGroup.add(box(0.24, 0.22, 0.04, 0, 0, -0.16, darkSteel));
+      // Вафельные насечки/зубья на ударной грани бойка
+      for (let ix = -0.06; ix <= 0.06; ix += 0.06) {
+        for (let iy = -0.05; iy <= 0.05; iy += 0.05) {
+          const tooth = box(0.032, 0.032, 0.032, ix, iy, -0.24, edgeSteel);
+          headGroup.add(tooth);
+        }
+      }
+
+      // Задний клевец (Armor-piercing curved pick/spike)
+      headGroup.add(box(0.12, 0.12, 0.12, 0, 0, 0.20, darkSteel));
+      headGroup.add(box(0.08, 0.08, 0.14, 0, -0.01, 0.32, steel));
+      headGroup.add(box(0.04, 0.04, 0.12, 0, -0.03, 0.44, edgeSteel));
+
+      // Верхний осадный шип-корона
+      headGroup.add(box(0.08, 0.16, 0.08, 0, 0.18, 0, darkSteel));
+      headGroup.add(box(0.04, 0.10, 0.04, 0, 0.28, 0, steel));
+
+      // Пылающее руническое ядро в центре молота
+      const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), runeMat);
+      core.position.set(0, 0, 0);
+      headGroup.add(core);
+
+      // Рунические пластины-инкрустации на боковых щеках
+      headGroup.add(box(0.252, 0.06, 0.18, 0, 0, 0, runeMat));
+      headGroup.add(box(0.16, 0.232, 0.16, 0, 0, 0, runeMat));
+
+      // Руническое обрамление
+      headGroup.add(box(0.254, 0.02, 0.05, 0, 0.05, -0.06, runeMat));
+      headGroup.add(box(0.254, 0.02, 0.05, 0, -0.05, -0.06, runeMat));
+
+      // Разворот головы молота для идеального обзора от первого лица
+      headGroup.rotation.z = Math.PI * 0.18;
+      g.add(headGroup);
+
+      g.scale.set(1.42, 1.42, 1.42);
+      model.add(g);
+
+      // Боевая стойка молота от первого лица: массивный боёк виден справа внизу
+      model.rotation.set(-0.10, 0.16, -0.16);
+      model.position.set(0.18, -0.08, 0.30);
     }
 
     if (w === "bow") {
@@ -756,6 +900,189 @@ let cd = 0,
     spearStreak = 0; spearStreakT = 0;
   }
 
+  function startHammerSwing() {
+    const st = getStats();
+    const asMul = st?.hammerAttackSpeedMul ?? 1.0;
+    hammerSwingMax = 0.52 / asMul;
+    hammerSwingT = hammerSwingMax;
+    cd = hammerSwingMax + 0.05;
+    hammerSwingImpulseFired = false;
+    hammerHitSet = new Set();
+  }
+
+  function startHammerSlam() {
+    hammerSlamMax = 0.70;
+    hammerSlamT = hammerSlamMax;
+    hammerSlamCd = 4.0;
+    hammerSlamHitTriggered = false;
+    cd = hammerSlamMax + 0.12;
+  }
+
+  function animateHammerSwing(p) {
+    if (p < 0.24) {
+      // Замах назад и вправо: поднимаем тяжелый молот
+      const t = p / 0.24;
+      const k = t * t * (3 - 2 * t);
+      hand.position.set(
+        baseHandPos.x + 0.05 * k,
+        baseHandPos.y + 0.06 * k,
+        baseHandPos.z + 0.06 * k
+      );
+      hand.rotation.set(
+        baseHandRot.x - 0.28 * k,
+        baseHandRot.y + 0.65 * k,
+        baseHandRot.z + 0.32 * k
+      );
+    } else if (p < 0.58) {
+      // Сокрушительный рубящий пронос справа налево через прицел с легким наклоном вниз
+      const t = (p - 0.24) / 0.34;
+      const k = t * t * (3 - 2 * t);
+      const fwd = Math.sin(t * Math.PI) * 0.08;
+      hand.position.set(
+        baseHandPos.x + 0.05 - 0.16 * k,
+        baseHandPos.y + 0.06 - 0.08 * k,
+        baseHandPos.z + 0.06 - fwd
+      );
+      hand.rotation.set(
+        baseHandRot.x - 0.28 + 0.35 * k,
+        baseHandRot.y + 0.65 - 1.55 * k,
+        baseHandRot.z + 0.32 - 0.90 * k
+      );
+    } else {
+      // Инерционное торможение и возврат в стойку
+      const t = (p - 0.58) / 0.42;
+      const k = 1 - t * (2 - t);
+      hand.position.set(
+        baseHandPos.x - 0.11 * k,
+        baseHandPos.y - 0.02 * k,
+        baseHandPos.z
+      );
+      hand.rotation.set(
+        baseHandRot.x + 0.07 * k,
+        baseHandRot.y - 0.90 * k,
+        baseHandRot.z - 0.58 * k
+      );
+    }
+  }
+
+  function animateHammerSlam(p) {
+    if (p < 0.50) {
+      // Подъем молота высоко над головой
+      const t = p / 0.50;
+      const k = t * t * (3 - 2 * t);
+      hand.position.set(
+        baseHandPos.x - 0.22 * k,
+        baseHandPos.y + 0.36 * k,
+        baseHandPos.z + 0.05 * k
+      );
+      hand.rotation.set(
+        baseHandRot.x - 0.72 * k,
+        baseHandRot.y * (1 - k),
+        baseHandRot.z + 0.12 * k
+      );
+      if (hammerAnim.coreMat) {
+        hammerAnim.coreMat.emissiveIntensity = 2.2 + 2.0 * k;
+      }
+    } else if (p < 0.64) {
+      // Яростное падение прямо оземь
+      const t = (p - 0.50) / 0.14;
+      const k = t * t;
+      hand.position.set(
+        baseHandPos.x - 0.22 + 0.08 * k,
+        baseHandPos.y + 0.36 - 0.54 * k,
+        baseHandPos.z + 0.05 - 0.18 * k
+      );
+      hand.rotation.set(
+        baseHandRot.x - 0.72 + 1.55 * k,
+        0,
+        baseHandRot.z + 0.12 - 0.12 * k
+      );
+    } else {
+      // Микро-отскок и подъем молота с пола
+      const t = (p - 0.64) / 0.36;
+      const k = 1 - t * (2 - t);
+      const bounce = Math.sin(t * Math.PI) * 0.04;
+      hand.position.set(
+        baseHandPos.x - 0.14 * k,
+        baseHandPos.y - 0.18 * k + bounce,
+        baseHandPos.z - 0.13 * k
+      );
+      hand.rotation.set(
+        baseHandRot.x + 0.83 * k,
+        0,
+        baseHandRot.z
+      );
+      if (hammerAnim.coreMat) {
+        hammerAnim.coreMat.emissiveIntensity = 2.2;
+      }
+    }
+  }
+
+  function executeHammerGroundSlam() {
+    camImpulseX = 0.065;
+    const origin = new THREE.Vector3();
+    camera.getWorldPosition(origin);
+    const fwd = new THREE.Vector3();
+    camera.getWorldDirection(fwd);
+    fwd.y = 0;
+    fwd.normalize();
+
+    const slamPos = origin.clone().addScaledVector(fwd, 2.2);
+    slamPos.y = 0.05;
+
+    const st = getStats();
+    const radiusMul = st?.hammerSlamRadiusMul ?? 1.0;
+    const slamRadius = 4.5 * radiusMul;
+
+    fx?.addShockwave?.(slamPos, 2.8 * radiusMul);
+    fx?.addShatter?.(slamPos, 2.5, 0xd49b45);
+
+    if (lastEnemiesRef && typeof lastEnemiesRef.forEachInRadius === "function") {
+      const stunDur = 1.3 + (st?.hammerStunBonus ?? 0);
+      let baseDmg = 75 * (st?.damageMul ?? 1) * (st?.arenaDamageMul ?? 1) * (st?.hammerDamageMul ?? 1);
+
+      lastEnemiesRef.forEachInRadius(slamPos, slamRadius, (e) => {
+        const ep = (e && e.position) || e?.pos || (e.mesh && e.mesh.position);
+        if (!ep) return;
+        const dist = ep.distanceTo(slamPos);
+        if (dist > slamRadius) return;
+
+        let dmg = baseDmg;
+        if (st?.hammerEpicenter && dist <= 2.2) {
+          dmg *= 1.75;
+        }
+        if (st?.hammerShatterMul && e.kind === "shielder") {
+          dmg *= st.hammerShatterMul;
+        }
+
+        const knockDir = ep.clone().sub(slamPos).setY(0);
+        if (knockDir.lengthSq() > 1e-4) knockDir.normalize();
+        else knockDir.copy(fwd);
+
+        const id = (e && (e.id ?? e._id ?? e.uuid)) ?? null;
+        const meta = {
+          kind: "melee",
+          crushShield: true,
+          stun: stunDur,
+          knockback: (st?.hammerEpicenter ? 3.8 : 2.4),
+          knockDir,
+          point: ep.clone().add(new THREE.Vector3(0, 1.0, 0))
+        };
+
+        if (typeof lastEnemiesRef.applyDamage === "function") {
+          const dealt = lastEnemiesRef.applyDamage(id, dmg, meta);
+          if (st?.hammerLifesteal) {
+            player.hp = clamp(player.hp + dmg * st.hammerLifesteal, 0, player.hpMax);
+          }
+          if (dealt?.killed && progression?.onKill) {
+            progression.onKill(dealt.xp || 0);
+            if (dealt.bossLoot && progression.openBossLoot) progression.openBossLoot();
+          }
+        }
+      });
+    }
+  }
+
   function equip(w) {
     if (!defs[w]) w = "spear";
     weapon = w;
@@ -764,6 +1091,12 @@ let cd = 0,
     cd = 0; swingT = 0; castT = 0; bowCharge = 0; bowCharging = false;
     comboStep = 0; comboNextStep = 0; comboGrace = 0; comboQueued = false;
     spearHitSet = new Set();
+    hammerSwingT = 0;
+    hammerSlamT = 0;
+    hammerSlamCd = 0;
+    hammerHitSet = new Set();
+    hammerSwingImpulseFired = false;
+    hammerSlamHitTriggered = false;
     comboImpulseFired = false;
     camImpulseZ = 0;
     camImpulseX = 0;
@@ -785,14 +1118,56 @@ let cd = 0,
     const justPressed = mouseDown && !prevMouseDown;
     prevMouseDown = mouseDown;
 
+    const rightDown = !!input?.mouse?.rightDown;
+    const rightJustPressed = rightDown && !prevRightMouseDown;
+    prevRightMouseDown = rightDown;
+
     if (comboGrace > 0) comboGrace = Math.max(0, comboGrace - dt);
     if (spearStreakT > 0) {
       spearStreakT = Math.max(0, spearStreakT - dt);
       if (spearStreakT === 0) spearStreak = 0;
     }
 
+    if (hammerSlamCd > 0) hammerSlamCd = Math.max(0, hammerSlamCd - dt);
+
     const st0 = getStats();
     if (st0 && (st0.spearNextRadiusT || 0) > 0) st0.spearNextRadiusT = Math.max(0, st0.spearNextRadiusT - dt);
+
+    if (weapon === "hammer") {
+      if (hammerSlamT > 0) {
+        hammerSlamT -= dt;
+        const p = 1 - hammerSlamT / hammerSlamMax;
+        animateHammerSlam(p);
+        if (!hammerSlamHitTriggered && p >= 0.50) {
+          hammerSlamHitTriggered = true;
+          executeHammerGroundSlam();
+        }
+        if (hammerSlamT <= 0) {
+          hammerSlamT = 0;
+        }
+      } else if (hammerSwingT > 0) {
+        hammerSwingT -= dt;
+        const p = 1 - hammerSwingT / hammerSwingMax;
+        animateHammerSwing(p);
+        if (!hammerSwingImpulseFired && p >= 0.24) {
+          hammerSwingImpulseFired = true;
+          camImpulseZ = -0.035;
+          camImpulseX = 0.020;
+        }
+        if (hammerSwingT <= 0) {
+          hammerSwingT = 0;
+        }
+      } else {
+        hand.rotation.copy(baseHandRot);
+        hand.position.copy(baseHandPos);
+
+        if (rightJustPressed && hammerSlamCd <= 0 && hammerSwingT <= 0) {
+          startHammerSlam();
+        } else if (justPressed && cd <= 0 && hammerSlamT <= 0) {
+          startHammerSwing();
+        }
+      }
+    }
 
     if (weapon === "spear") {
       if (swingT > 0) {
@@ -892,6 +1267,72 @@ let cd = 0,
   }
 
   function meleeQuery(enemies) {
+    lastEnemiesRef = enemies;
+
+    if (weapon === "hammer") {
+      if (hammerSwingT <= 0) return;
+      const p = 1 - hammerSwingT / hammerSwingMax;
+      if (p < 0.24 || p > 0.58) return;
+
+      const origin = new THREE.Vector3();
+      camera.getWorldPosition(origin);
+
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      dir.y *= 0.25;
+      dir.normalize();
+
+      if (!enemies || typeof enemies.forEachInRadius !== "function") return;
+
+      const st = getStats();
+      const range = defs.hammer.meleeRange * (st?.hammerReachMul ?? 1);
+
+      enemies.forEachInRadius(origin, range, (e) => {
+        const ep = (e && e.position) || e?.pos || (e.mesh && e.mesh.position);
+        if (!ep) return;
+
+        const to = safeCloneVec3(ep).sub(origin);
+        to.y = 0;
+        if (to.length() > range) return;
+        to.normalize();
+
+        const arc = defs.hammer.arc;
+        if (Math.acos(clamp(to.dot(dir), -1, 1)) > arc) return;
+
+        const id = (e && (e.id ?? e._id ?? e.uuid)) ?? null;
+        if (id !== null && hammerHitSet.has(id)) return;
+        if (id !== null) hammerHitSet.add(id);
+
+        let dmg = defs.hammer.dmg * ((st?.damageMul ?? 1) * (st?.arenaDamageMul ?? 1)) * (st?.hammerDamageMul ?? 1);
+
+        const hitPoint = ep ? new THREE.Vector3(ep.x, (ep.y || 0) + 1.1, ep.z) : origin.clone().addScaledVector(dir, 1.8);
+        const knockDir = to.clone();
+
+        const meta = {
+          kind: "melee",
+          crushShield: true,
+          stagger: 1.0,
+          knockback: 1.85,
+          knockDir,
+          srcPos: origin,
+          point: hitPoint
+        };
+
+        if (typeof enemies.applyDamage === "function") {
+          const dealt = enemies.applyDamage(id, dmg, meta);
+          if (st?.hammerLifesteal) {
+            player.hp = clamp(player.hp + dmg * (st.hammerLifesteal || 0), 0, player.hpMax);
+          }
+
+          if (dealt?.killed && progression?.onKill) {
+            progression.onKill(dealt.xp || 0);
+            if (dealt.bossLoot && progression.openBossLoot) progression.openBossLoot();
+          }
+        }
+      });
+      return;
+    }
+
     if (weapon !== "spear" || swingT <= 0) return;
     const s = spearCombos[comboStep] || spearCombos[0];
     const p = 1 - swingT / swingMax;

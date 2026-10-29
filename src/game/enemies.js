@@ -4,8 +4,8 @@
 // applyDamage(id,dmg,meta) and damage(...) alias returning {killed,xp}
 
 import * as THREE from "three";
-import { attachVOXSkin } from "../models/vox_registry.js?v=20261030_01";
-import { createPortals } from "./portals.js?v=20261030_01";
+import { attachVOXSkin } from "../models/vox_registry.js?v=20261030_02";
+import { createPortals } from "./portals.js?v=20261030_02";
 
 export function createEnemies(ctx) {
   const scene = ctx.scene || ctx.engine?.scene || ctx.engine?.getScene?.();
@@ -1248,8 +1248,8 @@ function forEachInRadius
       e.burnDps = Math.max(e.burnDps || 0, meta.burn.dps || 6.0);
     }
 
-    // Shielder: reduces frontal damage
-    if (e.kind === "shielder" && e.shieldFrontMul < 1 && meta?.srcPos){
+    // Shielder: reduces frontal damage (unless crushed by heavy weapon)
+    if (e.kind === "shielder" && e.shieldFrontMul < 1 && meta?.srcPos && !meta?.crushShield){
       const ep = e.root.position;
       const toPlayer = player?.position ? player.position.clone().sub(ep) : new THREE.Vector3(0,0,1);
       toPlayer.y = 0;
@@ -1270,8 +1270,37 @@ function forEachInRadius
     // Boss: dynamic incoming damage multiplier (anchors / core windows)
     if (e.kind === "boss" && typeof e.incomingMul === "number") dmg *= e.incomingMul;
 
-
     e.hp -= dmg;
+
+    // Stun (e.g. Hammer Earthshaker Slam)
+    if (meta?.stun && e.kind !== "boss") {
+      e.stunT = Math.max(e.stunT || 0, meta.stun);
+      e.attackPhase = 0;
+      e.attackT = 0;
+      e.attackCd = Math.max(e.attackCd || 0, meta.stun + 0.4);
+      const weaponArm = (e.kind === "brute") ? (e.root.armL || e.root.voxMesh?.armL) : (e.root.armR || e.root.voxMesh?.armR);
+      if (weaponArm) weaponArm.rotation.set(0, 0, 0);
+    }
+
+    // Stagger (interrupt enemy attack windup on heavy hits)
+    if (meta?.stagger && e.attackPhase === 1 && e.kind !== "boss") {
+      e.attackPhase = 0;
+      e.attackT = 0;
+      e.attackCd = Math.max(e.attackCd || 0, meta.stagger);
+      const weaponArm = (e.kind === "brute") ? (e.root.armL || e.root.voxMesh?.armL) : (e.root.armR || e.root.voxMesh?.armR);
+      if (weaponArm) weaponArm.rotation.set(0, 0, 0);
+    }
+
+    // Knockback (push enemy away physically)
+    if (meta?.knockback && meta?.knockDir && e.kind !== "boss") {
+      const kb = meta.knockback;
+      e.root.position.x += meta.knockDir.x * kb;
+      e.root.position.z += meta.knockDir.z * kb;
+      if (world?.bounds) {
+        e.root.position.x = clamp(e.root.position.x, world.bounds.minX + 0.6, world.bounds.maxX - 0.6);
+        e.root.position.z = clamp(e.root.position.z, world.bounds.minZ + 0.6, world.bounds.maxZ - 0.6);
+      }
+    }
 
     // Getting hit makes enemy briefly more aggressive (prevents poke->kite loop)
     e.aggroT = Math.max(e.aggroT || 0, 1.4);
@@ -1679,6 +1708,17 @@ if (e.burnT > 0){
     }
   }
 }
+
+      // --- Stun status (stops movement and attacks) ---
+      if ((e.stunT || 0) > 0) {
+        e.stunT = Math.max(0, e.stunT - dt);
+        // Stunned: shudder / tilt slightly, skip movement and attacking
+        const vox = e.root.voxMesh || e.root.children.find(c => c.name && c.name.endsWith("_VOX"));
+        if (vox) {
+          vox.rotation.z = Math.sin(performance.now() * 0.02) * 0.08;
+        }
+        continue;
+      }
 
       // base desired direction
       let dirx = dxp / dist;

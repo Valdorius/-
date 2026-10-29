@@ -1,16 +1,16 @@
-import { createEngine } from "./core/engine.js?v=20261030_01";
-import { createInput } from "./core/input.js?v=20261030_01";
-import { clamp } from "./core/math.js?v=20261030_01";
-import { createHUD } from "./game/hud.js?v=20261030_01";
-import { createAudio } from "./game/audio.js?v=20261030_01";
-import { createWorld } from "./game/world.js?v=20261030_01";
-import { createPlayer } from "./game/player.js?v=20261030_01";
-import { createWeapons } from "./game/weapons.js?v=20261030_01";
-import { createEnemies } from "./game/enemies.js?v=20261030_01";
-import { createProjectiles } from "./game/projectiles.js?v=20261030_01";
-import { createEffects } from "./game/effects.js?v=20261030_01";
-import { createProgression } from "./game/progression.js?v=20261030_01";
-import { preloadVOXModels } from "./models/vox_registry.js?v=20261030_01";
+import { createEngine } from "./core/engine.js?v=20261030_02";
+import { createInput } from "./core/input.js?v=20261030_02";
+import { clamp } from "./core/math.js?v=20261030_02";
+import { createHUD } from "./game/hud.js?v=20261030_02";
+import { createAudio } from "./game/audio.js?v=20261030_02";
+import { createWorld } from "./game/world.js?v=20261030_02";
+import { createPlayer } from "./game/player.js?v=20261030_02";
+import { createWeapons } from "./game/weapons.js?v=20261030_02";
+import { createEnemies } from "./game/enemies.js?v=20261030_02";
+import { createProjectiles } from "./game/projectiles.js?v=20261030_02";
+import { createEffects } from "./game/effects.js?v=20261030_02";
+import { createProgression } from "./game/progression.js?v=20261030_02";
+import { preloadVOXModels } from "./models/vox_registry.js?v=20261030_02";
 
 // Kick off parallel preload of all VOX models on boot
 preloadVOXModels();
@@ -70,6 +70,18 @@ function buildPick(){
 }
 buildPick();
 window.__game = { enemies, player, weapons, engine, input, world };
+
+// Quick weapon hotkeys (1: Глефа, 2: Молот, 3: Лук, 4: Посох)
+window.addEventListener("keydown", (e) => {
+  if (paused || gameOver || !weapons.hasWeapon()) return;
+  const keyMap = { Digit1: "spear", Digit2: "hammer", Digit3: "bow", Digit4: "staff" };
+  if (keyMap[e.code]) {
+    const w = keyMap[e.code];
+    weapons.equip(w);
+    const d = weapons.def(w);
+    if (d) hud.setWeaponName(d.name);
+  }
+});
 
 // Game loop
 let acc = 0;
