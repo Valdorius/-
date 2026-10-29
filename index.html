@@ -4,7 +4,20 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
   <title>Voxel Arena</title>
+  <script>
+    (function() {
+      const V = "20261030_01";
+      const u = new URL(window.location.href);
+      if (u.searchParams.get("v") !== V) {
+        u.searchParams.set("v", V);
+        window.location.replace(u.href);
+      }
+    })();
+  </script>
   <style>
     html,body{margin:0;height:100%;overflow:hidden;background:#06080d;color:#dfe9ff;font:14px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial;touch-action:none}
     #c{position:fixed;inset:0;display:block;z-index:0;touch-action:none}
@@ -139,6 +152,6 @@
 
   
 
-  <script type="module" src="./src/main.js?v=20261029_20"></script>
+  <script type="module" src="./src/main.js?v=20261030_01"></script>
 </body>
 </html>
