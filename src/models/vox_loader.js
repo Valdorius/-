@@ -143,20 +143,22 @@ function buildMesh(parsed, opts){
 
     let px, py, pz;
     if (upAxis === "z") {
-      // MagicaVoxel: X=width, Y=depth (eyes/front towards +Y), Z=height (up is +Z)
+      // MagicaVoxel: X=width, Y=depth (face/eyes at min Y), Z=height (up is +Z)
       // Three.js: X=width, Y=height (up is +Y), Z=depth (forward is +Z)
+      // Face at min Y must point along +Z (towards player).
+      // Rotating 180° in XZ ensures character faces +Z (towards player) with correct handedness.
       if (pivot === "bottom_center") {
-        px = (v.x + 0.5 - midX) * voxelSize;
+        px = (midX - (v.x + 0.5)) * voxelSize;
         py = (v.z - minZ) * voxelSize;
-        pz = (v.y + 0.5 - midY) * voxelSize;
+        pz = (midY - (v.y + 0.5)) * voxelSize;
       } else if (pivot === "center") {
-        px = (v.x + 0.5 - midX) * voxelSize;
+        px = (midX - (v.x + 0.5)) * voxelSize;
         py = (v.z + 0.5 - midZ) * voxelSize;
-        pz = (v.y + 0.5 - midY) * voxelSize;
+        pz = (midY - (v.y + 0.5)) * voxelSize;
       } else {
-        px = (v.x + 0.5) * voxelSize;
+        px = -(v.x + 0.5) * voxelSize;
         py = (v.z + 0.5) * voxelSize;
-        pz = (v.y + 0.5) * voxelSize;
+        pz = -(v.y + 0.5) * voxelSize;
       }
     } else {
       // Y-up models: X=width, Y=height (up is +Y), Z=depth (visor/front is minZ)
