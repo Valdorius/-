@@ -91,6 +91,29 @@ function buildMesh(parsed, opts){
 
   const { size, voxels, palette } = parsed;
 
+  if (!voxels || voxels.length === 0) return null;
+
+  // Compute active voxel bounding box for exact centering and floor alignment
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+  for (const v of voxels) {
+    if (v.x < minX) minX = v.x; if (v.x > maxX) maxX = v.x;
+    if (v.y < minY) minY = v.y; if (v.y > maxY) maxY = v.y;
+    if (v.z < minZ) minZ = v.z; if (v.z > maxZ) maxZ = v.z;
+  }
+
+  // Detect height axis:
+  // MagicaVoxel standard models (e.g. 80x80 skeletons) have Z as height.
+  // Other tools export with Y as height (e.g. 32x32 models).
+  const spanY = maxY - minY + 1;
+  const spanZ = maxZ - minZ + 1;
+  const upAxis = opts?.upAxis ? opts.upAxis.toLowerCase() : (spanZ >= spanY ? "z" : "y");
+
+  const midX = (minX + maxX + 1) * 0.5;
+  const midY = (minY + maxY + 1) * 0.5;
+  const midZ = (minZ + maxZ + 1) * 0.5;
+
   // Precompute cube face data
   const hs = voxelSize * 0.5;
   const faces = [
@@ -112,32 +135,46 @@ function buildMesh(parsed, opts){
   const normals = [];
   const colors = [];
 
-    // Pivot:
-  // - "origin": keep VOX origin (0,0,0) at (0,0,0)
-  // - "center": center the model around (0,0,0)
-  // - "bottom_center": center X/Z but keep bottom on Y=0 (best for characters)
-  let cx = 0, cy = 0, cz = 0;
-  if (pivot === "center"){
-    cx = size.x * voxelSize * 0.5;
-    cy = size.y * voxelSize * 0.5;
-    cz = size.z * voxelSize * 0.5;
-  } else if (pivot === "bottom_center"){
-    cx = size.x * voxelSize * 0.5;
-    cy = size.y * voxelSize * 0.5;
-    cz = 0;
-  }
-
-
   for (const v of voxels){
     const col = palette[v.c] >>> 0;
     const r = ((col >> 16) & 255) / 255;
     const g = ((col >>  8) & 255) / 255;
     const b = ((col >>  0) & 255) / 255;
 
-    const px = (v.x + 0.5) * voxelSize - cx;
-    const py = (v.z + 0.5) * voxelSize - cz; // map VOX z -> world y? No: keep y up, but VOX uses y as up. We'll keep y up.
-    const pz = (v.y + 0.5) * voxelSize - cy; // map VOX y -> world z
-    // The above swap (y<->z) makes many VOX exports look correct in our world where Y is up.
+    let px, py, pz;
+    if (upAxis === "z") {
+      // MagicaVoxel: X=width, Y=depth (eyes/front towards +Y), Z=height (up is +Z)
+      // Three.js: X=width, Y=height (up is +Y), Z=depth (forward is +Z)
+      if (pivot === "bottom_center") {
+        px = (v.x + 0.5 - midX) * voxelSize;
+        py = (v.z - minZ) * voxelSize;
+        pz = (v.y + 0.5 - midY) * voxelSize;
+      } else if (pivot === "center") {
+        px = (v.x + 0.5 - midX) * voxelSize;
+        py = (v.z + 0.5 - midZ) * voxelSize;
+        pz = (v.y + 0.5 - midY) * voxelSize;
+      } else {
+        px = (v.x + 0.5) * voxelSize;
+        py = (v.z + 0.5) * voxelSize;
+        pz = (v.y + 0.5) * voxelSize;
+      }
+    } else {
+      // Y-up models: X=width, Y=height (up is +Y), Z=depth (visor/front is minZ)
+      // In Three.js forward is +Z, so (midZ - v.z) maps visor to forward +Z.
+      if (pivot === "bottom_center") {
+        px = (v.x + 0.5 - midX) * voxelSize;
+        py = (v.y - minY) * voxelSize;
+        pz = (midZ - (v.z + 0.5)) * voxelSize;
+      } else if (pivot === "center") {
+        px = (v.x + 0.5 - midX) * voxelSize;
+        py = (v.y + 0.5 - midY) * voxelSize;
+        pz = (midZ - (v.z + 0.5)) * voxelSize;
+      } else {
+        px = (v.x + 0.5) * voxelSize;
+        py = (v.y + 0.5) * voxelSize;
+        pz = (v.z + 0.5) * voxelSize;
+      }
+    }
 
     for (const f of faces){
       const n = f.n;

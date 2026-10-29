@@ -4,8 +4,8 @@
 // applyDamage(id,dmg,meta) and damage(...) alias returning {killed,xp}
 
 import * as THREE from "three";
-import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_3";
-import { createPortals } from "./portals.js?v=20261029_3";
+import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_4";
+import { createPortals } from "./portals.js?v=20261029_4";
 
 export function createEnemies(ctx) {
   const scene = ctx.scene || ctx.engine?.scene || ctx.engine?.getScene?.();
@@ -1807,10 +1807,20 @@ if (e.burnT > 0){
       // walk anim
       const t = performance.now() * 0.006 + e.id;
       const step = Math.sin(t) * 0.55;
-      e.model.armL.rotation.x = step;
-      e.model.armR.rotation.x = -step;
-      e.model.legL.rotation.x = -step;
-      e.model.legR.rotation.x = step;
+      if (e.model?.armL) e.model.armL.rotation.x = step;
+      if (e.model?.armR) e.model.armR.rotation.x = -step;
+      if (e.model?.legL) e.model.legL.rotation.x = -step;
+      if (e.model?.legR) e.model.legR.rotation.x = step;
+
+      // VOX mesh organic dynamic locomotion
+      const vox = e.root.voxMesh || e.root.children.find(c => c.name && c.name.endsWith("_VOX"));
+      if (vox) {
+        const spdRatio = clamp(spd / BASE_SPEED, 0.4, 2.0);
+        const bounce = Math.abs(Math.sin(t * 1.5)) * 0.08 * spdRatio;
+        vox.position.y = bounce;
+        vox.rotation.z = Math.sin(t * 0.75) * 0.07 * spdRatio; // sway side to side
+        vox.rotation.x = 0.09 * spdRatio; // forward running lean
+      }
 
       // --- RANGED/SNIPER/SUMMONER: shoot / summon ---
       if (e.kind === "ranged" || e.kind === "sniper" || e.kind === "summoner") {
@@ -1932,17 +1942,35 @@ if (e.kind === "bomber"){
       if (e.attackPhase !== 0) {
         e.attackT += dt;
 
+        const vox = e.root.voxMesh || e.root.children.find(c => c.name && c.name.endsWith("_VOX"));
+
         if (e.attackPhase === 1) { // windup
           const a = clamp(e.attackT / windup, 0, 1);
-          e.model.armR.rotation.x = -0.6 - a * 1.05;
-          e.model.armR.rotation.z =  0.2 + a * 0.35;
-          e.model.armL.rotation.x =  0.25 + a * 0.25;
+          if (e.model?.armR) {
+            e.model.armR.rotation.x = -0.6 - a * 1.05;
+            e.model.armR.rotation.z =  0.2 + a * 0.35;
+          }
+          if (e.model?.armL) e.model.armL.rotation.x =  0.25 + a * 0.25;
+
+          if (vox) {
+            vox.rotation.x = 0.09 - a * 0.32;
+            vox.position.y = (vox.position.y || 0) + a * 0.07;
+            vox.rotation.y = a * 0.18;
+          }
 
           if (e.attackT >= windup) { e.attackPhase = 2; e.attackT = 0; }
         } else if (e.attackPhase === 2) { // swing
           const a = clamp(e.attackT / swing, 0, 1);
-          e.model.armR.rotation.x = (-1.65) + a * (2.45);
-          e.model.armR.rotation.z = ( 0.55) - a * (0.75);
+          if (e.model?.armR) {
+            e.model.armR.rotation.x = (-1.65) + a * (2.45);
+            e.model.armR.rotation.z = ( 0.55) - a * (0.75);
+          }
+
+          if (vox) {
+            vox.rotation.x = (-0.23) + a * 0.52;
+            vox.position.z = a * 0.24;
+            vox.rotation.y = 0.18 - a * 0.36;
+          }
 
           if (!e.hitThisSwing && a >= 0.45 && a <= 0.75) {
             const hitRange = (isBoss ? 2.25 : 1.55) + e.radius;
@@ -1961,8 +1989,16 @@ if (e.kind === "bomber"){
           if (e.attackT >= swing) { e.attackPhase = 3; e.attackT = 0; }
         } else if (e.attackPhase === 3) { // recover
           const a = clamp(e.attackT / recover, 0, 1);
-          e.model.armR.rotation.x = 0.8 * (1 - a);
-          e.model.armR.rotation.z = -0.15 * (1 - a);
+          if (e.model?.armR) {
+            e.model.armR.rotation.x = 0.8 * (1 - a);
+            e.model.armR.rotation.z = -0.15 * (1 - a);
+          }
+
+          if (vox) {
+            vox.rotation.x = 0.29 * (1 - a);
+            vox.position.z = 0.24 * (1 - a);
+            vox.rotation.y = -0.18 * (1 - a);
+          }
 
           if (e.attackT >= recover) {
             e.attackPhase = 0;
@@ -1982,6 +2018,7 @@ if (e.kind === "bomber"){
   const api = {
     tick,
     group,
+    createEnemy,
     count: 0,
     wave: 1,
     waveType: "mixed",

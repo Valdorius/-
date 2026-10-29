@@ -1,12 +1,12 @@
 import * as THREE from "three";
-import { loadVOX } from "./vox_loader.js?v=20261029_3";
+import { loadVOX } from "./vox_loader.js?v=20261029_4";
 
 /**
  * VOX registry.
  * Important: never "blank" a character until VOX is actually loaded.
  * This prevents invisible enemies when a VOX fails to parse/load.
  */
-const V = "20261029_3";
+const V = "20261029_4";
 
 export const VOX_MODELS = {
   // 32x32x32 models → voxelSize 0.056 = ~1.8m tall
@@ -73,6 +73,7 @@ export function attachVOXSkin(group, key, opts={}) {
     }
 
     group.add(mesh);
+    group.voxMesh = mesh;
   }).catch(() => {
     // Silent fail: keep current visuals; add a small placeholder only if caller wanted replace.
     if (!keepExisting) {
@@ -81,4 +82,13 @@ export function attachVOXSkin(group, key, opts={}) {
       group.add(ph);
     }
   });
+}
+
+/**
+ * Preload all VOX models on game launch to prevent pop-in / mid-game model transformations.
+ */
+export function preloadVOXModels() {
+  for (const cfg of Object.values(VOX_MODELS)) {
+    loadVOX(cfg.url, cfg).catch(() => {});
+  }
 }
