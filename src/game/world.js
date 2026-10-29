@@ -47,14 +47,6 @@ export function createWorld(engine){
   floor.position.y = 0;
   group.add(floor);
 
-  // Neon rim ring (purely visual)
-  const rimGeo = new THREE.RingGeometry(HEX_R * 0.96, HEX_R * 1.03, 96, 1);
-  const rimMat = new THREE.MeshBasicMaterial({ color: 0x39c7ff, transparent: true, opacity: 0.65, side: THREE.DoubleSide });
-  const rim = new THREE.Mesh(rimGeo, rimMat);
-  rim.rotation.x = -Math.PI / 2;
-  rim.position.y = 0.02;
-  group.add(rim);
-
   // ===== Stone & Rune Materials for Pillars and Walls =====
   const wallBrickTex = createPixelStoneBrickTexture();
   wallBrickTex.repeat.set(12, 2);
@@ -136,24 +128,29 @@ export function createWorld(engine){
   function addSegment(ax, az, bx, bz, mat = wallMat){
     const dx = bx - ax, dz = bz - az;
     const len = Math.hypot(dx, dz);
+    const mx = (ax + bx) * 0.5;
+    const mz = (az + bz) * 0.5;
+    const rotY = Math.atan2(dx, dz);
 
-    const geo = new THREE.BoxGeometry(WALL_T, WALL_H, Math.max(0.01, len));
+    // Wall box with slight extension so adjacent walls overlap seamlessly at corners
+    const wallLen = len + 1.4;
+    const geo = new THREE.BoxGeometry(WALL_T, WALL_H, wallLen);
     const m = new THREE.Mesh(geo, mat);
-    m.position.set((ax + bx) * 0.5, WALL_H * 0.5, (az + dz) * 0.5);
-    m.rotation.y = Math.atan2(dx, dz);
+    m.position.set(mx, WALL_H * 0.5, mz);
+    m.rotation.y = rotY;
     group.add(m);
 
     // Glowing neon crenellation trim along the wall top
-    const trimGeo = new THREE.BoxGeometry(WALL_T * 1.04, 0.16, Math.max(0.01, len));
+    const trimGeo = new THREE.BoxGeometry(WALL_T * 1.04, 0.16, wallLen);
     const trimMesh = new THREE.Mesh(trimGeo, wallTrimMat);
-    trimMesh.position.set((ax + bx) * 0.5, WALL_H + 0.08, (az + dz) * 0.5);
-    trimMesh.rotation.y = Math.atan2(dx, dz);
+    trimMesh.position.set(mx, WALL_H + 0.08, mz);
+    trimMesh.rotation.y = rotY;
     group.add(trimMesh);
 
     segs.push({ ax, az, bx, bz, r: WALL_R });
   }
 
-  // ===== Outer hex =====
+  // ===== Outer Regular Hexagon =====
   const pts = [];
   for(let i = 0; i < 6; i++){
     const ang = Math.PI / 3 * i + Math.PI / 6; // flat side faces -Z/+Z
@@ -162,6 +159,48 @@ export function createWorld(engine){
   for(let i = 0; i < 6; i++){
     const a = pts[i], b = pts[(i + 1) % 6];
     addSegment(a[0], a[1], b[0], b[1], wallMat);
+  }
+
+  // 6 Corner Bastion Towers at the vertices to guarantee 100% gapless corners & solid collision
+  const cornerTowerGeo = new THREE.BoxGeometry(WALL_T * 1.5, WALL_H + 0.6, WALL_T * 1.5);
+  const cornerCapGeo = new THREE.BoxGeometry(WALL_T * 1.65, 0.22, WALL_T * 1.65);
+  for (let i = 0; i < 6; i++) {
+    const pt = pts[i];
+    const tower = new THREE.Mesh(cornerTowerGeo, pillarTrimMat);
+    tower.position.set(pt[0], (WALL_H + 0.6) * 0.5, pt[1]);
+    group.add(tower);
+
+    const cap = new THREE.Mesh(cornerCapGeo, wallTrimMat);
+    cap.position.set(pt[0], WALL_H + 0.6 + 0.11, pt[1]);
+    group.add(cap);
+
+    circles.push({ x: pt[0], z: pt[1], r: WALL_T * 0.85 });
+  }
+
+  // Glowing Hexagonal Perimeter Border on floor (perfectly concentric with hexagonal walls)
+  const hexRimMat = new THREE.MeshBasicMaterial({
+    color: 0x39c7ff,
+    transparent: true,
+    opacity: 0.65
+  });
+
+  for (let i = 0; i < 6; i++) {
+    const a = pts[i], b = pts[(i + 1) % 6];
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const len = Math.hypot(dx, dz);
+    const mx = (a[0] + b[0]) * 0.5;
+    const mz = (a[1] + b[1]) * 0.5;
+
+    // Inward normal towards arena center (0,0)
+    let nx = -dz / len, nz = dx / len;
+    if (nx * (-mx) + nz * (-mz) < 0) { nx = -nx; nz = -nz; }
+
+    // Place glowing hexagonal track 1.8m inside the wall
+    const stripGeo = new THREE.BoxGeometry(0.45, 0.03, Math.max(0.01, len - 2.4));
+    const strip = new THREE.Mesh(stripGeo, hexRimMat);
+    strip.position.set(mx + nx * 1.8, 0.015, mz + nz * 1.8);
+    strip.rotation.y = Math.atan2(dx, dz);
+    group.add(strip);
   }
 
   // ===== Columns for cover (Architectural Voxel Pillars) =====
@@ -230,46 +269,28 @@ export function createWorld(engine){
   // Coarse clamp (stability). Real "solid" is colliders.
   const bounds = { minX: -HEX_R - 2, maxX: HEX_R + 2, minZ: -HEX_R - 2, maxZ: HEX_R + 2 };
 
+  // Exact geometric regular hexagon boundary planes (perpendicular to midpoints of the 6 sides)
+  const HEX_INRADIUS = HEX_R * Math.cos(Math.PI / 6); // 41.5692m
+  const hexNormals = [];
+  for (let k = 0; k < 6; k++) {
+    const ang = (Math.PI / 3) * (k + 1);
+    hexNormals.push({ x: Math.cos(ang), z: Math.sin(ang) });
+  }
+
   function resolveCircle(pos, radius, iterations = 2){
     for(let it = 0; it < iterations; it++){
-      // segments as capsules
-      for(const s of segs){
-        const ax = s.ax, az = s.az, bx = s.bx, bz = s.bz, wr = s.r;
-        const vx = bx - ax, vz = bz - az;
-        const wx = pos.x - ax, wz = pos.z - az;
-        const vv = vx * vx + vz * vz || 1e-6;
-
-        let t = (wx * vx + wz * vz) / vv;
-        t = Math.max(0, Math.min(1, t));
-
-        const cx = ax + vx * t;
-        const cz = az + vz * t;
-
-        let dx = pos.x - cx;
-        let dz = pos.z - cz;
-        let d2 = dx * dx + dz * dz;
-
-        const minD = radius + wr;
-        const minD2 = minD * minD;
-
-        if(d2 < minD2){
-          let d = Math.sqrt(d2);
-          if(d < 1e-5){
-            // stable normal: perpendicular to segment
-            const nx = -vz, nz = vx;
-            const nl = Math.hypot(nx, nz) || 1;
-            dx = nx / nl; dz = nz / nl;
-            d = 1e-5;
-          }else{
-            dx /= d; dz /= d;
-          }
-          const push = (minD - d) + 1e-4;
-          pos.x += dx * push;
-          pos.z += dz * push;
+      // 1. Solid Hexagonal Outer Perimeter (6 inward-facing half-planes: 100% impenetrable)
+      const maxDist = HEX_INRADIUS - WALL_R - radius;
+      for (const n of hexNormals) {
+        const proj = pos.x * n.x + pos.z * n.z;
+        if (proj > maxDist) {
+          const push = (proj - maxDist) + 1e-4;
+          pos.x -= n.x * push;
+          pos.z -= n.z * push;
         }
       }
 
-      // circles
+      // 2. Internal Cover Columns and Corner Bastions (spherical/circular colliders)
       for(const c of circles){
         const dx = pos.x - c.x;
         const dz = pos.z - c.z;
