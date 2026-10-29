@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
+import { createFpsArms } from "./fps_arms.js?v=20261030_04";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -21,15 +22,34 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
   const baseHandPos = hand.position.clone();
   const baseHandRot = hand.rotation.clone();
 
+  // Первоклассный риг воксельных рук от первого лица
+  const fpsArms = createFpsArms({ camera });
+  fpsArms.setVisible(false);
+
+  const _camWorldQuat = new THREE.Quaternion();
+  const _camInvQuat = new THREE.Quaternion();
+  const _tmpPosR = new THREE.Vector3();
+  const _tmpQuatR = new THREE.Quaternion();
+  const _tmpPosL = new THREE.Vector3();
+  const _tmpQuatL = new THREE.Quaternion();
+
   let weapon = null;
   let weaponName = "—";
   let model = null;
+
+  // refs for spear viewmodel animation
+  const spearAnim = {
+    gripRear: null,
+    gripFront: null
+  };
 
   // refs for bow viewmodel animation
   const bowAnim = {
     stringLine: null,
     stringGeo: null,
     arrow: null,
+    gripLeft: null,
+    gripRight: null,
     tipTop: new THREE.Vector3(0, 0.74, -0.05),
     tipBot: new THREE.Vector3(0, -0.74, -0.05),
     nock: new THREE.Vector3(0, 0.01, -0.02),
@@ -41,12 +61,15 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
   const staffAnim = {
     crystal: null,
     crystalMat: null,
-    muzzle: null
+    muzzle: null,
+    gripRight: null
   };
 
   // refs for hammer viewmodel animation
   const hammerAnim = {
-    coreMat: null
+    coreMat: null,
+    gripRear: null,
+    gripFront: null
   };
 
   function getStats(){
@@ -186,6 +209,16 @@ let cd = 0,
       gripRear.position.set(0, 0.02, 0.42);
       g.add(gripRear);
 
+      // Якоря для воксельных рук от 1-го лица
+      spearAnim.gripRear = new THREE.Object3D();
+      spearAnim.gripRear.position.set(0, 0.02, 0.42);
+      g.add(spearAnim.gripRear);
+
+      spearAnim.gripFront = new THREE.Object3D();
+      spearAnim.gripFront.position.set(0, 0.02, -0.10);
+      spearAnim.gripFront.rotation.set(0, 0, Math.PI);
+      g.add(spearAnim.gripFront);
+
       // 4. Массивный гранёный затыльник-противовес с задним шипом
       const pommel = new THREE.Mesh(new THREE.CylinderGeometry(0.070, 0.058, 0.12, 8), darkSteel);
       pommel.rotation.x = Math.PI / 2;
@@ -315,6 +348,16 @@ let cd = 0,
       gripRear.rotation.x = Math.PI / 2;
       gripRear.position.set(0, 0.02, 0.42);
       g.add(gripRear);
+
+      // Якоря для воксельных рук от 1-го лица
+      hammerAnim.gripRear = new THREE.Object3D();
+      hammerAnim.gripRear.position.set(0, 0.02, 0.42);
+      g.add(hammerAnim.gripRear);
+
+      hammerAnim.gripFront = new THREE.Object3D();
+      hammerAnim.gripFront.position.set(0, 0.02, 0.06);
+      hammerAnim.gripFront.rotation.set(0, 0, Math.PI);
+      g.add(hammerAnim.gripFront);
 
       // 3. Массивный противовес-яблоко (heavy faceted pommel)
       const pommel = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.065, 0.14, 8), darkSteel);
@@ -525,6 +568,15 @@ let cd = 0,
       bowAnim.muzzle.position.set(0, 0, 0.82);
       arrowGroup.add(bowAnim.muzzle);
 
+      // Якоря для воксельных рук от 1-го лица
+      bowAnim.gripLeft = new THREE.Object3D();
+      bowAnim.gripLeft.position.set(0, 0, 0);
+      g.add(bowAnim.gripLeft);
+
+      bowAnim.gripRight = new THREE.Object3D();
+      bowAnim.gripRight.position.set(0, 0, 0.02);
+      arrowGroup.add(bowAnim.gripRight);
+
       arrowGroup.position.set(bowAnim.nock.x, bowAnim.nock.y, bowAnim.nock.z);
       arrowGroup.visible = true;
       bowAnim.arrow = arrowGroup;
@@ -585,6 +637,11 @@ let cd = 0,
       staffAnim.crystal = crystal;
       staffAnim.crystalMat = crystalMat;
       staffAnim.muzzle = muzzle;
+
+      // Якорь для правой руки от 1-го лица
+      staffAnim.gripRight = new THREE.Object3D();
+      staffAnim.gripRight.position.set(0.02, 0.20, -0.02);
+      g.add(staffAnim.gripRight);
 
       g.scale.set(1.55, 1.55, 1.55);
       model.add(g);
@@ -1112,6 +1169,14 @@ let cd = 0,
 
     buildModel(w);
     if (w === "bow") setBowPull(0);
+
+    if (fpsArms) {
+      fpsArms.setVisible(true);
+      if (w === "hammer") fpsArms.setRuneColor(0xffaa22);
+      else if (w === "spear") fpsArms.setRuneColor(0x00f0ff);
+      else if (w === "bow") fpsArms.setRuneColor(0x00f0ff);
+      else if (w === "staff") fpsArms.setRuneColor(0xff4455);
+    }
   }
 
   function tick(dt) {
@@ -1267,6 +1332,70 @@ let cd = 0,
       camImpulseX *= Math.exp(-dt * 22.0);
       camera.rotation.z = camImpulseZ;
       camera.rotation.x = camImpulseX;
+    }
+
+    // Физическая анимация воксельных рук от первого лица
+    if (fpsArms && weapon) {
+      hand.updateMatrixWorld(true);
+      camera.getWorldQuaternion(_camWorldQuat);
+      _camInvQuat.copy(_camWorldQuat).invert();
+
+      if (weapon === "hammer" && hammerAnim.gripRear && hammerAnim.gripFront) {
+        hammerAnim.gripRear.getWorldPosition(_tmpPosR);
+        camera.worldToLocal(_tmpPosR);
+        hammerAnim.gripRear.getWorldQuaternion(_tmpQuatR);
+        _tmpQuatR.premultiply(_camInvQuat);
+
+        hammerAnim.gripFront.getWorldPosition(_tmpPosL);
+        camera.worldToLocal(_tmpPosL);
+        hammerAnim.gripFront.getWorldQuaternion(_tmpQuatL);
+        _tmpQuatL.premultiply(_camInvQuat);
+
+        if (hammerAnim.coreMat) {
+          fpsArms.setRuneGlow(hammerAnim.coreMat.emissiveIntensity);
+        }
+
+        fpsArms.update(dt, "hammer", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
+      } else if (weapon === "spear" && spearAnim.gripRear && spearAnim.gripFront) {
+        spearAnim.gripRear.getWorldPosition(_tmpPosR);
+        camera.worldToLocal(_tmpPosR);
+        spearAnim.gripRear.getWorldQuaternion(_tmpQuatR);
+        _tmpQuatR.premultiply(_camInvQuat);
+
+        spearAnim.gripFront.getWorldPosition(_tmpPosL);
+        camera.worldToLocal(_tmpPosL);
+        spearAnim.gripFront.getWorldQuaternion(_tmpQuatL);
+        _tmpQuatL.premultiply(_camInvQuat);
+
+        fpsArms.update(dt, "spear", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
+      } else if (weapon === "bow" && bowAnim.gripLeft && bowAnim.gripRight) {
+        bowAnim.gripRight.getWorldPosition(_tmpPosR);
+        camera.worldToLocal(_tmpPosR);
+        bowAnim.gripRight.getWorldQuaternion(_tmpQuatR);
+        _tmpQuatR.premultiply(_camInvQuat);
+
+        bowAnim.gripLeft.getWorldPosition(_tmpPosL);
+        camera.worldToLocal(_tmpPosL);
+        bowAnim.gripLeft.getWorldQuaternion(_tmpQuatL);
+        _tmpQuatL.premultiply(_camInvQuat);
+
+        fpsArms.update(dt, "bow", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
+      } else if (weapon === "staff" && staffAnim.gripRight) {
+        staffAnim.gripRight.getWorldPosition(_tmpPosR);
+        camera.worldToLocal(_tmpPosR);
+        staffAnim.gripRight.getWorldQuaternion(_tmpQuatR);
+        _tmpQuatR.premultiply(_camInvQuat);
+
+        const time = (performance.now() || 0) * 0.003;
+        _tmpPosL.set(
+          -0.18 + Math.cos(time * 0.7) * 0.015,
+          -0.24 + Math.sin(time) * 0.018,
+          -0.38 + Math.sin(time * 0.5) * 0.02
+        );
+        _tmpQuatL.set(0.1, -0.15, 0.05, 0.98).normalize();
+
+        fpsArms.update(dt, "staff", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
+      }
     }
   }
 
