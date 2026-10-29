@@ -5,10 +5,10 @@ export function createProjectiles({ engine, world, fx }){
   const { scene } = engine;
   const list = [];
 
-  // Player projectiles
-  const shaftGeo = new THREE.BoxGeometry(0.014, 0.014, 0.44);
-  const headGeo  = new THREE.BoxGeometry(0.042, 0.020, 0.09);
-  const fletchGeo= new THREE.BoxGeometry(0.055, 0.012, 0.09);
+  // Player projectiles: Heavy Runic Broadhead Arrow
+  const shaftGeo = new THREE.BoxGeometry(0.022, 0.022, 0.54);
+  const headGeo  = new THREE.BoxGeometry(0.065, 0.020, 0.12);
+  const fletchGeo= new THREE.BoxGeometry(0.075, 0.016, 0.14);
   const boltGeo  = new THREE.BoxGeometry(0.10,0.10,0.24);
 
   const matArrowShaft = new THREE.MeshStandardMaterial({ color: 0x241812, roughness:0.85 });
@@ -86,11 +86,46 @@ export function createProjectiles({ engine, world, fx }){
     });
   }
 
-  function tick(dt){
+  function tick(dt, enemies = null, onHit = null){
     for (let i=list.length-1;i>=0;i--){
       const p = list[i];
       p.life -= dt;
+
+      const oldPos = p.pos.clone();
       p.pos.addScaledVector(p.dir, p.speed*dt);
+
+      // Environment collision: columns (pillars), bastions and outer walls
+      if (world && typeof world.checkRay === "function") {
+        const envHit = world.checkRay(oldPos, p.pos, p.radius || 0.12);
+        if (envHit) {
+          p.pos.copy(envHit.point);
+          // Stone impact spark & debris VFX
+          fx?.addHit?.(p.pos, p.kind, 1.15);
+
+          // If explosive spell (splash), detonate against pillar surface
+          if (p.splash > 0 && enemies && typeof enemies.forEachInRadius === "function") {
+            enemies.forEachInRadius(p.pos, p.splash, (e) => {
+              onHit?.({
+                enemyId: e.id,
+                damage: p.damage * 0.85,
+                point: p.pos,
+                dir: p.dir,
+                kind: p.kind,
+                splash: true,
+                mark: p.mark || null,
+                bleed: p.bleed || null,
+                burn: p.burn || null,
+                srcPos: p.origin || null
+              });
+            });
+          }
+
+          if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+          list.splice(i, 1);
+          continue;
+        }
+      }
+
       p.mesh.position.copy(p.pos);
 
       if (p.kind === "spell" || p.kind === "enemyOrb"){

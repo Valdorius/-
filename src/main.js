@@ -69,7 +69,7 @@ function buildPick(){
   }
 }
 buildPick();
-window.__game = { enemies, player, weapons, engine, input };
+window.__game = { enemies, player, weapons, engine, input, world };
 
 // Game loop
 let acc = 0;
@@ -188,46 +188,40 @@ function update(dt, now){
   player.tick(dt);
   weapons.tick(dt, now);
 
-  proj.tick(dt);
-  enemies.tick(dt);
-  // sword melee -> enemies
-  weapons.meleeQuery(enemies);
-
-  // Collisions: player projectiles -> enemies
-  proj.resolveHits(enemies, (hit)=>{
+  function onPlayerProjHit(hit){
     const dealt = enemies.damage(hit.enemyId, hit.damage, hit);
 
     // lifesteal is based on outgoing damage (roughly)
     prog.onDealDamage?.(hit.damage);
 
     // chain lightning (staff perk/relic)
-const chain = (prog.stats?.chain ?? 0);
-const chainChance = (prog.stats?.chainChance ?? 0.33);
-const chainMax = (prog.stats?.chainMax ?? 1);
+    const chain = (prog.stats?.chain ?? 0);
+    const chainChance = (prog.stats?.chainChance ?? 0.33);
+    const chainMax = (prog.stats?.chainMax ?? 1);
 
-if (chain > 0 && Math.random() < chainChance){
-  let from = hit.point;
-  let lastId = hit.enemyId;
-  for (let hop=0; hop<chainMax; hop++){
-    let best = null;
-    let bestD2 = 1e9;
-    enemies.forEachInRadius(from, 5.0, (e)=>{
-      if (e.id === lastId) return;
-      const dx = e.pos.x - from.x;
-      const dz = e.pos.z - from.z;
-      const d2 = dx*dx + dz*dz;
-      if (d2 < bestD2){
-        bestD2 = d2;
-        best = e;
+    if (chain > 0 && Math.random() < chainChance){
+      let from = hit.point;
+      let lastId = hit.enemyId;
+      for (let hop=0; hop<chainMax; hop++){
+        let best = null;
+        let bestD2 = 1e9;
+        enemies.forEachInRadius(from, 5.0, (e)=>{
+          if (e.id === lastId) return;
+          const dx = e.pos.x - from.x;
+          const dz = e.pos.z - from.z;
+          const d2 = dx*dx + dz*dz;
+          if (d2 < bestD2){
+            bestD2 = d2;
+            best = e;
+          }
+        });
+        if (!best) break;
+        enemies.damage(best.id, hit.damage * chain, { kind:"chain", point: best.pos, srcPos: player.position });
+        fx.addArcFlash?.(best.pos);
+        from = best.pos;
+        lastId = best.id;
       }
-    });
-    if (!best) break;
-    enemies.damage(best.id, hit.damage * chain, { kind:"chain", point: best.pos, srcPos: player.position });
-    fx.addArcFlash?.(best.pos);
-    from = best.pos;
-    lastId = best.id;
-  }
-}
+    }
 
     if (dealt.killed){
       prog.onKill(dealt.xp);
@@ -256,7 +250,15 @@ if (chain > 0 && Math.random() < chainChance){
         prog.openBossLoot?.();
       }
     }
-  });
+  }
+
+  proj.tick(dt, enemies, onPlayerProjHit);
+  enemies.tick(dt);
+  // sword melee -> enemies
+  weapons.meleeQuery(enemies);
+
+  // Collisions: player projectiles -> enemies
+  proj.resolveHits(enemies, onPlayerProjHit);
 
   // Collisions: enemy projectiles -> player
   proj.resolveHitsPlayer(player, (hit)=>{

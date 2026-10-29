@@ -311,5 +311,64 @@ export function createWorld(engine){
     }
   }
 
-  return { group, bounds, resolveCircle, circles };
+  function checkRay(from, to, radius = 0.1) {
+    const dx = to.x - from.x;
+    const dz = to.z - from.z;
+    const l2 = dx * dx + dz * dz;
+
+    let closestHit = null;
+    let minT = 1.0;
+
+    // 1. Check outer hex walls
+    const maxDist = HEX_INRADIUS - WALL_R - radius;
+    for (const n of hexNormals) {
+      const p0 = from.x * n.x + from.z * n.z;
+      const p1 = to.x * n.x + to.z * n.z;
+      if (p1 > maxDist) {
+        const denom = p1 - p0;
+        const t = (Math.abs(denom) > 1e-6) ? Math.max(0, Math.min(1, (maxDist - p0) / denom)) : 0;
+        if (t <= minT) {
+          minT = t;
+          closestHit = {
+            point: new THREE.Vector3(from.x + dx * t, (from.y + to.y) * 0.5, from.z + dz * t),
+            normal: new THREE.Vector3(-n.x, 0, -n.z),
+            kind: "wall"
+          };
+        }
+      }
+    }
+
+    // 2. Check cover pillars and bastions
+    for (const c of circles) {
+      const effR = c.r + radius;
+      const effR2 = effR * effR;
+      const t = (l2 > 1e-8) ? Math.max(0, Math.min(1, ((c.x - from.x) * dx + (c.z - from.z) * dz) / l2)) : 0;
+      const cx = from.x + dx * t;
+      const cz = from.z + dz * t;
+      const d2 = (cx - c.x) * (cx - c.x) + (cz - c.z) * (cz - c.z);
+      if (d2 <= effR2) {
+        // Find ray entry parameter
+        const d = Math.sqrt(d2);
+        const back = Math.sqrt(Math.max(0, effR2 - d2));
+        const len = Math.sqrt(l2);
+        const tHit = (len > 1e-4) ? Math.max(0, Math.min(1, t - back / len)) : 0;
+        if (tHit <= minT) {
+          minT = tHit;
+          const hitX = from.x + dx * tHit;
+          const hitZ = from.z + dz * tHit;
+          const nx = (hitX - c.x) / (d || 1);
+          const nz = (hitZ - c.z) / (d || 1);
+          closestHit = {
+            point: new THREE.Vector3(hitX, (from.y + to.y) * 0.5, hitZ),
+            normal: new THREE.Vector3(nx, 0, nz),
+            kind: "pillar"
+          };
+        }
+      }
+    }
+
+    return closestHit;
+  }
+
+  return { group, bounds, resolveCircle, circles, hexNormals, checkRay };
 }
