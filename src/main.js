@@ -69,7 +69,7 @@ function buildPick(){
   }
 }
 buildPick();
-window.__game = { enemies, player, weapons, engine };
+window.__game = { enemies, player, weapons, engine, input };
 
 // Game loop
 let acc = 0;

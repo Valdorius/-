@@ -30,10 +30,11 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
     stringLine: null,
     stringGeo: null,
     arrow: null,
-    tipTop: new THREE.Vector3(0, 0.78, 0.00),
-    tipBot: new THREE.Vector3(0, -0.22, 0.00),
-    nock: new THREE.Vector3(0, 0.28, 0.03),
-    muzzle: null
+    tipTop: new THREE.Vector3(0, 0.74, -0.05),
+    tipBot: new THREE.Vector3(0, -0.74, -0.05),
+    nock: new THREE.Vector3(0, 0.01, -0.02),
+    muzzle: null,
+    runeMats: []
   };
 
   // refs for staff viewmodel animation
@@ -70,8 +71,8 @@ let cd = 0,
   let spawnProjectile = null;
 
   const defs = {
-    spear: { name: "Копьё", hint: "Ближний бой. Тычки и отмах древком.", meleeRange: 3.2, dmg: 32, rate: 1.8, arc: 1.25 },
-    bow: { name: "Лук", hint: "Дальний бой. Удерживай ЛКМ — заряд, отпусти — выстрел.", dmgMin: 22, dmgMax: 56, chargeTime: 0.85, speed: 24 },
+    spear: { name: "Руническая глефа", hint: "Ближний бой. Колющие выпады и сокрушительный серповидный взмах.", meleeRange: 3.2, dmg: 32, rate: 1.8, arc: 1.25 },
+    bow: { name: "Рунический лук", hint: "Дальний бой. Удерживай ЛКМ — натяжение и рунный заряд, отпусти — выстрел.", dmgMin: 22, dmgMax: 56, chargeTime: 0.85, speed: 24 },
     // Посох: медленный большой взрывной шар (чтобы читалось и было "опасно")
     staff: { name: "Посох", hint: "Магия. Медленная взрывная сфера с высоким уроном.", dmg: 34, rate: 1.35, speed: 9.0, splash: 2.20 }
   };
@@ -107,44 +108,109 @@ let cd = 0,
     model = new THREE.Group();
 
     if (w === "spear") {
-      // Копьё (FPS): ГОРИЗОНТАЛЬНО вдоль Z.
+      // Руническая глефа / копьё-алебарда (FPS): ГОРИЗОНТАЛЬНО вдоль Z.
       const g = new THREE.Group();
 
       const spearWoodTex = createPixelWoodTexture();
-      spearWoodTex.repeat.set(1, 8);
+      spearWoodTex.repeat.set(1, 10);
 
-      const metal3 = new THREE.MeshStandardMaterial({ color: 0xd8e4fc, roughness: 0.40, metalness: 0.45 });
       const darkWood = new THREE.MeshStandardMaterial({ map: spearWoodTex, roughness: 0.88 });
-      const wrap = new THREE.MeshStandardMaterial({ color: 0x33241b, roughness: 0.95 });
+      const wrap = new THREE.MeshStandardMaterial({ color: 0x241812, roughness: 0.95 });
+      const steel = new THREE.MeshStandardMaterial({ color: 0xd2dcfa, roughness: 0.35, metalness: 0.55 });
+      const darkSteel = new THREE.MeshStandardMaterial({ color: 0x566276, roughness: 0.55, metalness: 0.45 });
+      const runeMat = new THREE.MeshStandardMaterial({
+        color: 0x00f5ff,
+        emissive: 0x00e1ff,
+        emissiveIntensity: 1.8,
+        roughness: 0.20,
+        metalness: 0.15
+      });
 
-      // Древко: цилиндр по умолчанию вдоль Y, поворачиваем чтобы стало вдоль Z
-      const SHAFT_LEN = 1.65;
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.034, SHAFT_LEN, 8), darkWood);
+      // 1. Древко: мощное, прочное
+      const SHAFT_LEN = 1.85;
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.040, SHAFT_LEN, 8), darkWood);
       shaft.rotation.x = Math.PI / 2;
-      shaft.position.set(0, 0.02, -0.88);
+      shaft.position.set(0, 0.02, -0.32);
       g.add(shaft);
 
-      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.040, 0.34, 8), wrap);
-      grip.rotation.x = Math.PI / 2;
-      grip.position.set(0, 0.02, -0.18);
-      g.add(grip);
+      // 2. Двойная кожаная обмотка хвата с металлическими кольцами
+      // Передний хват
+      const gripFront = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.32, 8), wrap);
+      gripFront.rotation.x = Math.PI / 2;
+      gripFront.position.set(0, 0.02, -0.15);
+      g.add(gripFront);
 
-      const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.18, 8), metal3);
+      // Задний хват
+      const gripRear = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.28, 8), wrap);
+      gripRear.rotation.x = Math.PI / 2;
+      gripRear.position.set(0, 0.02, 0.35);
+      g.add(gripRear);
+
+      // Стальные фиксирующие кольца
+      const ringZ = [-0.32, 0.01, 0.20, 0.50];
+      for (const rz of ringZ) {
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.050, 0.050, 0.024, 8), darkSteel);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(0, 0.02, rz);
+        g.add(ring);
+      }
+
+      // 3. Кованый затыльник-противовес с задним шипом
+      const pommel = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.065, 0.09), darkSteel);
+      pommel.position.set(0, 0.02, 0.58);
+      g.add(pommel);
+      const rearSpike = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.026, 0.09), steel);
+      rearSpike.position.set(0, 0.02, 0.65);
+      g.add(rearSpike);
+
+      // 4. Стальная посадочная втулка наконечника
+      const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.062, 0.22, 8), darkSteel);
       socket.rotation.x = Math.PI / 2;
-      socket.position.set(0, 0.02, -1.62);
+      socket.position.set(0, 0.02, -1.02);
       g.add(socket);
 
-      // Листовидный наконечник (вдоль Z)
-      g.add(box(0.07, 0.04, 0.24, 0, 0.02, -1.78, metal3));
-      g.add(box(0.05, 0.03, 0.18, 0, 0.02, -1.92, metal3));
-      g.add(box(0.03, 0.02, 0.10, 0, 0.02, -2.02, metal3));
-      g.add(box(0.012, 0.012, 0.30, 0, 0.035, -1.90, metal3));
+      // 5. Центральное колющее остриё (Pike)
+      // Основной клинок
+      g.add(box(0.086, 0.038, 0.32, 0, 0.02, -1.22, steel));
+      // Сужающаяся средняя часть
+      g.add(box(0.058, 0.026, 0.24, 0, 0.02, -1.42, steel));
+      // Игольчатое остриё
+      g.add(box(0.026, 0.014, 0.16, 0, 0.02, -1.56, steel));
+      // Продольное ребро жёсткости
+      g.add(box(0.016, 0.046, 0.44, 0, 0.02, -1.32, steel));
+      // Светящаяся руническая канавка вдоль лезвия
+      g.add(box(0.010, 0.048, 0.32, 0, 0.02, -1.30, runeMat));
 
-      g.scale.set(1.22, 1.22, 1.22);
+      // 6. Боковой рубящий серп глефы/алебарды (слева, x < 0)
+      // Шейка крепления к втулке
+      g.add(box(0.14, 0.036, 0.09, -0.09, 0.02, -1.14, darkSteel));
+      // Тело серповидного рубящего лезвия
+      g.add(box(0.036, 0.30, 0.34, -0.19, 0.02, -1.24, steel));
+      // Верхний клюв серпа
+      g.add(box(0.030, 0.044, 0.16, -0.22, 0.15, -1.40, steel));
+      // Нижний бородатый шип
+      g.add(box(0.030, 0.044, 0.12, -0.22, -0.11, -1.08, steel));
+      // Светящаяся дуговая инкрустация на серпе
+      g.add(box(0.042, 0.024, 0.24, -0.19, 0.02, -1.24, runeMat));
+
+      // 7. Задний бронебойный клюв-крюк (справа, x > 0)
+      g.add(box(0.14, 0.034, 0.06, 0.10, 0.02, -1.12, darkSteel));
+      g.add(box(0.034, 0.044, 0.09, 0.18, 0.00, -1.08, steel));
+
+      // 8. Светящийся рунический кристалл в центре втулки
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.052, 0), runeMat);
+      gem.position.set(0, 0.02, -1.14);
+      g.add(gem);
+
+      // Защитные лапки вокруг кристалла
+      g.add(box(0.014, 0.014, 0.08, 0.044, 0.02, -1.14, darkSteel));
+      g.add(box(0.014, 0.014, 0.08, -0.044, 0.02, -1.14, darkSteel));
+
+      g.scale.set(1.30, 1.30, 1.30);
       model.add(g);
 
-      model.rotation.set(0.02, 0.06, -0.10);
-      model.position.set(0.14, -0.10, 0.05);
+      model.rotation.set(-0.06, 0.12, -0.22);
+      model.position.set(0.18, -0.10, 0.28);
     }
 
     if (w === "bow") {
@@ -152,64 +218,142 @@ let cd = 0,
       bowAnim.stringGeo = null;
       bowAnim.arrow = null;
       bowAnim.muzzle = null;
+      bowAnim.runeMats = [];
 
       const g = new THREE.Group();
-      const limbMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.88 });
 
-      // цельная дуга
-      const X = 0.16;
-      const curvePts = [
-        new THREE.Vector3(X, -0.20, -0.06),
-        new THREE.Vector3(X, 0.02, 0.08),
-        new THREE.Vector3(X, 0.26, 0.10),
-        new THREE.Vector3(X, 0.50, 0.08),
-        new THREE.Vector3(X, 0.78, -0.06)
-      ];
-      const curve = new THREE.CatmullRomCurve3(curvePts);
-      const tube = new THREE.TubeGeometry(curve, 24, 0.028, 8, false);
-      g.add(new THREE.Mesh(tube, limbMat));
+      const bowWoodTex = createPixelWoodTexture();
+      bowWoodTex.repeat.set(1, 4);
 
-      // рукоять
-      g.add(box(0.08, 0.22, 0.08, X, 0.28, -0.02, wood));
+      const darkWood = new THREE.MeshStandardMaterial({ map: bowWoodTex, roughness: 0.86 });
+      const wrap = new THREE.MeshStandardMaterial({ color: 0x221610, roughness: 0.95 });
+      const steel = new THREE.MeshStandardMaterial({ color: 0xc4d2e8, roughness: 0.35, metalness: 0.65 });
+      const darkSteel = new THREE.MeshStandardMaterial({ color: 0x485264, roughness: 0.60, metalness: 0.45 });
+      const runeMat = new THREE.MeshStandardMaterial({
+        color: 0x00f5ff,
+        emissive: 0x00d8ff,
+        emissiveIntensity: 1.2,
+        roughness: 0.25,
+        metalness: 0.15
+      });
+      bowAnim.runeMats.push(runeMat);
 
-      bowAnim.tipBot.set(X, -0.20, -0.06);
-      bowAnim.tipTop.set(X, 0.78, -0.06);
-      bowAnim.nock.set(X + 0.02, 0.28, -0.02);
+      // 1. Эргономичная рукоять (ТОНКАЯ, НИКАКИХ ГИГАНТСКИХ КУБОВ!)
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.022, 0.16, 8), wrap);
+      g.add(grip);
 
-      const tipGeo = new THREE.BoxGeometry(0.030, 0.030, 0.050);
-      const tipTop = new THREE.Mesh(tipGeo, metal);
-      const tipBot = new THREE.Mesh(tipGeo, metal);
-      tipTop.position.copy(bowAnim.tipTop);
-      tipBot.position.copy(bowAnim.tipBot);
-      g.add(tipTop); g.add(tipBot);
+      // Металлические кольца на рукояти
+      const ringTop = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.018, 8), darkSteel);
+      ringTop.position.set(0, 0.085, 0);
+      g.add(ringTop);
+      const ringBot = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.018, 8), darkSteel);
+      ringBot.position.set(0, -0.085, 0);
+      g.add(ringBot);
 
+      // 2. Верхнее плечо (составное, рекурсивное)
+      const u1 = box(0.032, 0.20, 0.028, 0, 0.18, 0.02, darkWood);
+      u1.rotation.x = -0.15;
+      const u2 = box(0.028, 0.20, 0.024, 0, 0.36, 0.06, darkWood);
+      u2.rotation.x = 0.05;
+      const u3 = box(0.024, 0.18, 0.020, 0, 0.53, 0.05, darkWood);
+      u3.rotation.x = 0.25;
+      const u4 = box(0.020, 0.14, 0.018, 0, 0.67, -0.01, darkWood);
+      u4.rotation.x = 0.45;
+      g.add(u1, u2, u3, u4);
+
+      // Светящиеся руны на верхнем плече
+      const ur1 = box(0.018, 0.045, 0.010, 0, 0.25, 0.038, runeMat);
+      const ur2 = box(0.016, 0.045, 0.010, 0, 0.38, 0.075, runeMat);
+      const ur3 = box(0.014, 0.040, 0.010, 0, 0.51, 0.065, runeMat);
+      g.add(ur1, ur2, ur3);
+
+      // Верхний роговой зацеп под тетиву
+      const tipTop = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.06, 0.032), steel);
+      tipTop.position.set(0, 0.74, -0.05);
+      tipTop.rotation.x = 0.55;
+      g.add(tipTop);
+
+      // 3. Нижнее плечо (симметричное рекурсивное)
+      const d1 = box(0.032, 0.20, 0.028, 0, -0.18, 0.02, darkWood);
+      d1.rotation.x = 0.15;
+      const d2 = box(0.028, 0.20, 0.024, 0, -0.36, 0.06, darkWood);
+      d2.rotation.x = -0.05;
+      const d3 = box(0.024, 0.18, 0.020, 0, -0.53, 0.05, darkWood);
+      d3.rotation.x = -0.25;
+      const d4 = box(0.020, 0.14, 0.018, 0, -0.67, -0.01, darkWood);
+      d4.rotation.x = -0.45;
+      g.add(d1, d2, d3, d4);
+
+      // Светящиеся руны на нижнем плече
+      const dr1 = box(0.018, 0.045, 0.010, 0, -0.25, 0.038, runeMat);
+      const dr2 = box(0.016, 0.045, 0.010, 0, -0.38, 0.075, runeMat);
+      const dr3 = box(0.014, 0.040, 0.010, 0, -0.51, 0.065, runeMat);
+      g.add(dr1, dr2, dr3);
+
+      // Нижний роговой зацеп под тетиву
+      const tipBot = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.06, 0.032), steel);
+      tipBot.position.set(0, -0.74, -0.05);
+      tipBot.rotation.x = -0.55;
+      g.add(tipBot);
+
+      // Точки привязки тетивы
+      bowAnim.tipTop.set(0, 0.74, -0.05);
+      bowAnim.tipBot.set(0, -0.74, -0.05);
+      bowAnim.nock.set(0, 0.01, -0.02);
+
+      // 4. Светящаяся магическая тетива
       bowAnim.stringGeo = new THREE.BufferGeometry();
       bowAnim.stringGeo.setFromPoints([bowAnim.tipTop.clone(), bowAnim.nock.clone(), bowAnim.tipBot.clone()]);
       bowAnim.stringLine = new THREE.Line(
         bowAnim.stringGeo,
-        new THREE.LineBasicMaterial({ color: 0xdddddd })
+        new THREE.LineBasicMaterial({ color: 0x88e8ff })
       );
       g.add(bowAnim.stringLine);
 
-      const arrowMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(0.018, 0.018, 0.34),
-        new THREE.MeshStandardMaterial({ color: 0xe7eefc, roughness: 0.55, metalness: 0.12 })
-      );
-      arrowMesh.position.set(bowAnim.nock.x, bowAnim.nock.y, bowAnim.nock.z + 0.11);
-      arrowMesh.rotation.y = Math.PI;
-      arrowMesh.visible = false;
-      bowAnim.arrow = arrowMesh;
+      // 5. Настоящая руническая стрела
+      const arrowGroup = new THREE.Group();
 
+      // Древко стрелы (от nock z=0 вперед вдоль +Z до наконечника)
+      const arrowShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.64, 6), darkWood);
+      arrowShaft.rotation.x = Math.PI / 2;
+      arrowShaft.position.set(0, 0, 0.32);
+      arrowGroup.add(arrowShaft);
+
+      // Стальной гранёный наконечник (впереди, направлен вперед)
+      arrowGroup.add(box(0.036, 0.012, 0.08, 0, 0, 0.64, steel));
+      arrowGroup.add(box(0.020, 0.008, 0.06, 0, 0, 0.69, steel));
+      // Светящийся кристаллический сердечник наконечника
+      arrowGroup.add(box(0.016, 0.016, 0.05, 0, 0, 0.64, runeMat));
+
+      // Тройное воксельное оперение (перья) у запятника
+      const fletchMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff });
+      arrowGroup.add(box(0.004, 0.036, 0.10, 0, 0.022, 0.08, fletchMat));
+      const fL = box(0.032, 0.004, 0.10, -0.018, -0.011, 0.08, fletchMat);
+      fL.rotation.z = Math.PI / 6;
+      arrowGroup.add(fL);
+      const fR = box(0.032, 0.004, 0.10, 0.018, -0.011, 0.08, fletchMat);
+      fR.rotation.z = -Math.PI / 6;
+      arrowGroup.add(fR);
+
+      // Хвостовик с выемкой под тетиву
+      arrowGroup.add(box(0.012, 0.012, 0.025, 0, 0, 0.01, steel));
+
+      // Muzzle (дуло вылета снаряда)
       bowAnim.muzzle = new THREE.Object3D();
-      bowAnim.muzzle.position.set(0, 0, 0.19);
-      arrowMesh.add(bowAnim.muzzle);
-      g.add(arrowMesh);
+      bowAnim.muzzle.position.set(0, 0, 0.72);
+      arrowGroup.add(bowAnim.muzzle);
 
-      g.scale.set(2.05, 2.05, 2.05);
+      arrowGroup.position.set(bowAnim.nock.x, bowAnim.nock.y, bowAnim.nock.z);
+      arrowGroup.visible = true;
+      bowAnim.arrow = arrowGroup;
+      g.add(arrowGroup);
+
+      g.scale.set(0.72, 0.72, 0.72);
       model.add(g);
 
-      model.rotation.set(0.05, Math.PI * 0.99, -0.18);
-      model.position.set(0.16, 0.05, 0.03);
+      // Диагональный комфортный боевой хват (видны оба плеча, лук не перекрывает центр экрана)
+      model.rotation.set(0.04, Math.PI * 0.98, -0.42);
+      model.position.set(0.18, 0.05, -0.08);
     }
 
     if (w === "staff") {
@@ -275,15 +419,22 @@ let cd = 0,
     if (!bowAnim.stringGeo || !bowAnim.stringLine) return;
 
     const pull = clamp(p, 0, 1);
-    bowAnim.nock.z = -0.02 - 0.22 * pull;
+    bowAnim.nock.z = -0.02 - 0.28 * pull;
 
     if (bowAnim.arrow) {
-      bowAnim.arrow.visible = pull > 0.01;
-      bowAnim.arrow.position.set(bowAnim.nock.x, bowAnim.nock.y, bowAnim.nock.z + 0.11);
+      bowAnim.arrow.position.set(bowAnim.nock.x, bowAnim.nock.y, bowAnim.nock.z);
     }
 
     bowAnim.stringGeo.setFromPoints([bowAnim.tipTop.clone(), bowAnim.nock.clone(), bowAnim.tipBot.clone()]);
     bowAnim.stringGeo.attributes.position.needsUpdate = true;
+
+    // Flare up runic inlays on limbs as bow is drawn
+    if (bowAnim.runeMats) {
+      const glow = 1.1 + 2.4 * pull;
+      for (const m of bowAnim.runeMats) {
+        if (m) m.emissiveIntensity = glow;
+      }
+    }
   }
 
   function fireBow() {
@@ -484,14 +635,22 @@ let cd = 0,
       if (input.mouse.down) {
         bowCharging = true;
         bowCharge = Math.min(defs.bow.chargeTime, bowCharge + dt);
-        setBowPull(bowCharge / defs.bow.chargeTime);
+        const p = bowCharge / defs.bow.chargeTime;
+        setBowPull(p);
+        // Draw animation: bring bow into shooting alignment
+        hand.position.set(baseHandPos.x - 0.04 * p, baseHandPos.y + 0.02 * p, baseHandPos.z + 0.04 * p);
+        hand.rotation.set(baseHandRot.x - 0.03 * p, baseHandRot.y - 0.02 * p, baseHandRot.z + 0.06 * p);
       } else if (bowCharging) {
         bowCharging = false;
         if (cd <= 0) fireBow();
         bowCharge = 0;
         setBowPull(0);
+        hand.position.copy(baseHandPos);
+        hand.rotation.copy(baseHandRot);
       } else {
         setBowPull(0);
+        hand.position.copy(baseHandPos);
+        hand.rotation.copy(baseHandRot);
       }
     }
 
@@ -626,6 +785,7 @@ if (st?.spearLifesteal){
     tick,
     meleeQuery,
     bindProjectiles,
+    setBowPull,
     get weapon() { return weapon; },
     get name() { return weaponName; }
   };

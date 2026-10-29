@@ -6,14 +6,14 @@ export function createProjectiles({ engine, world, fx }){
   const list = [];
 
   // Player projectiles
-  const shaftGeo = new THREE.BoxGeometry(0.02, 0.02, 0.38);
-  const headGeo  = new THREE.BoxGeometry(0.05, 0.05, 0.08);
-  const fletchGeo= new THREE.BoxGeometry(0.06, 0.02, 0.06);
+  const shaftGeo = new THREE.BoxGeometry(0.014, 0.014, 0.44);
+  const headGeo  = new THREE.BoxGeometry(0.042, 0.020, 0.09);
+  const fletchGeo= new THREE.BoxGeometry(0.055, 0.012, 0.09);
   const boltGeo  = new THREE.BoxGeometry(0.10,0.10,0.24);
 
-  const matArrowShaft = new THREE.MeshStandardMaterial({ color: 0xe7eefc, roughness:0.6, metalness:0.08 });
-  const matArrowHead  = new THREE.MeshStandardMaterial({ color: 0xbfc7d6, roughness:0.35, metalness:0.45 });
-  const matFletch     = new THREE.MeshStandardMaterial({ color: 0x5a6b7a, roughness:0.85, metalness:0.0 });
+  const matArrowShaft = new THREE.MeshStandardMaterial({ color: 0x241812, roughness:0.85 });
+  const matArrowHead  = new THREE.MeshStandardMaterial({ color: 0xd2dcfa, roughness:0.35, metalness:0.65, emissive: 0x00d8ff, emissiveIntensity: 0.85 });
+  const matFletch     = new THREE.MeshBasicMaterial({ color: 0x00e5ff });
   const matBolt       = new THREE.MeshStandardMaterial({ color: 0xbda7ff, roughness:0.45, metalness:0.05, emissive:0x5533aa, emissiveIntensity:0.65 });
 
   // Red spell (player staff)
