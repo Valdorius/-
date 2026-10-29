@@ -4,7 +4,7 @@
 // applyDamage(id,dmg,meta) and damage(...) alias returning {killed,xp}
 
 import * as THREE from "three";
-import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_6";
+import { attachVOXSkin } from "../models/vox_registry.js?v=20261029_7";
 import { createPortals } from "./portals.js?v=20261029_4";
 
 export function createEnemies(ctx) {
@@ -1968,34 +1968,41 @@ if (e.kind === "bomber"){
       if (e.attackPhase !== 0) {
         e.attackT += dt;
 
+        // Weapon arm detection: Brute holds sword in armL and shield in armR; others swing with armR
+        const isLeftHandedWeapon = (e.kind === "brute");
+        const weaponArm = isLeftHandedWeapon ? armL : armR;
+        const shieldArm = isLeftHandedWeapon ? armR : armL;
+        const sideSign = isLeftHandedWeapon ? -1 : 1;
+
         if (e.attackPhase === 1) { // windup
           const a = clamp(e.attackT / windup, 0, 1);
-          if (armR) {
-            armR.rotation.x = -0.6 - a * 1.15; // raise weapon arm back & high
-            armR.rotation.z = -0.15 - a * 0.25;
-            armR.rotation.y = a * 0.25;
+          if (weaponArm) {
+            weaponArm.rotation.x = -0.6 - a * 1.15; // raise sword arm back & high
+            weaponArm.rotation.z = sideSign * (-0.15 - a * 0.25);
+            weaponArm.rotation.y = sideSign * (a * 0.25);
           }
-          if (armL) {
-            armL.rotation.x = 0.25 + a * 0.25; // off-hand balance
-            armL.rotation.z = 0.12;
+          if (shieldArm) {
+            shieldArm.rotation.x = 0.35 + a * 0.20; // shield arm guards the chest
+            shieldArm.rotation.z = sideSign * 0.20;
           }
           if (torso) {
-            torso.rotation.y = -a * 0.20; // torso winds back
+            torso.rotation.y = sideSign * (-a * 0.20); // torso winds back
           }
 
           if (e.attackT >= windup) { e.attackPhase = 2; e.attackT = 0; }
         } else if (e.attackPhase === 2) { // swing / slash
           const a = clamp(e.attackT / swing, 0, 1);
-          if (armR) {
-            armR.rotation.x = -1.75 + a * 2.85; // powerful downward slash forward
-            armR.rotation.z = -0.40 + a * 0.50;
-            armR.rotation.y = 0.25 - a * 0.45;
+          if (weaponArm) {
+            weaponArm.rotation.x = -1.75 + a * 2.85; // powerful downward sword slash forward
+            weaponArm.rotation.z = sideSign * (-0.40 + a * 0.50);
+            weaponArm.rotation.y = sideSign * (0.25 - a * 0.45);
           }
-          if (armL) {
-            armL.rotation.x = 0.5 - a * 0.35;
+          if (shieldArm) {
+            shieldArm.rotation.x = 0.55 - a * 0.25; // shield maintains forward guard
+            shieldArm.rotation.z = sideSign * 0.15;
           }
           if (torso) {
-            torso.rotation.y = -0.20 + a * 0.35; // torso follows strike
+            torso.rotation.y = sideSign * (-0.20 + a * 0.35); // torso follows the sword strike
           }
 
           if (!e.hitThisSwing && a >= 0.45 && a <= 0.75) {
@@ -2015,16 +2022,17 @@ if (e.kind === "bomber"){
           if (e.attackT >= swing) { e.attackPhase = 3; e.attackT = 0; }
         } else if (e.attackPhase === 3) { // recover
           const a = clamp(e.attackT / recover, 0, 1);
-          if (armR) {
-            armR.rotation.x = 1.10 * (1 - a);
-            armR.rotation.z = 0.10 * (1 - a);
-            armR.rotation.y = -0.20 * (1 - a);
+          if (weaponArm) {
+            weaponArm.rotation.x = 1.10 * (1 - a);
+            weaponArm.rotation.z = sideSign * (0.10 * (1 - a));
+            weaponArm.rotation.y = sideSign * (-0.20 * (1 - a));
           }
-          if (armL) {
-            armL.rotation.x = 0.15 * (1 - a);
+          if (shieldArm) {
+            shieldArm.rotation.x = 0.25 * (1 - a);
+            shieldArm.rotation.z = sideSign * (0.10 * (1 - a));
           }
           if (torso) {
-            torso.rotation.y = 0.15 * (1 - a);
+            torso.rotation.y = sideSign * (0.15 * (1 - a));
           }
 
           if (e.attackT >= recover) {
@@ -2032,8 +2040,8 @@ if (e.kind === "bomber"){
             e.attackT = 0;
             e.attackCd = cdBase;
             if (torso) torso.rotation.y = 0;
-            if (armR) armR.rotation.set(0, 0, 0);
-            if (armL) armL.rotation.set(0, 0, 0);
+            if (weaponArm) weaponArm.rotation.set(0, 0, 0);
+            if (shieldArm) shieldArm.rotation.set(0, 0, 0);
           }
         }
       }
