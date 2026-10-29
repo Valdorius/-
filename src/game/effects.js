@@ -29,31 +29,34 @@ export function createEffects(engine){
   function addHit(pos, kind="generic", strength=1){
     // colors per damage type
     let color = 0xffa0a8;
-    if (kind === "melee" || kind === "spear") color = 0xffd37a;
+    if (kind === "melee" || kind === "spear") color = 0x00f5ff;
     if (kind === "arrow") color = 0xdfe9ff;
     if (kind === "bolt") color = 0xbda7ff;
     if (kind === "spell") color = 0xff5566;
     if (kind === "chain") color = 0xbda7ff;
     if (kind === "enemyOrb" || kind === "ranged") color = 0x57c8ff;
 
-    // main flash
-    addImpact(pos, 1.15*strength, color);
+    // For melee/spear: do NOT spawn giant opaque sphere in front of camera!
+    if (kind !== "melee" && kind !== "spear") {
+      addImpact(pos, 1.15*strength, color);
+      addArcFlash(pos, color, 0.18 + 0.10*strength, 0.55);
+    } else {
+      // Clean, bright spark flash instead of a giant solid ball
+      addArcFlash(pos, 0x00f5ff, 0.07 * strength, 0.85);
+    }
 
-    // quick ring-ish flash
-    addArcFlash(pos, color, 0.18 + 0.10*strength, 0.55);
-
-    // shards
-    const n = 5 + Math.floor(2*strength);
+    // shards / sparks
+    const n = 6 + Math.floor(3*strength);
     for (let i=0;i<n;i++){
       const sh = new THREE.Mesh(shardGeo, shardMat(color));
       sh.position.copy(pos);
       sh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
-      sh.scale.setScalar(0.65 + Math.random()*0.55);
+      sh.scale.setScalar(0.40 + Math.random()*0.40);
       scene.add(sh);
       const ang = Math.random()*Math.PI*2;
-      const spd = (2.2 + Math.random()*2.2) * (0.8 + 0.3*strength);
-      const vel = new THREE.Vector3(Math.cos(ang)*spd, 2.2 + Math.random()*1.5, Math.sin(ang)*spd);
-      particles.push({ mesh: sh, vel, t: 0.22 + Math.random()*0.10 });
+      const spd = (2.6 + Math.random()*2.8) * (0.8 + 0.3*strength);
+      const vel = new THREE.Vector3(Math.cos(ang)*spd, 1.6 + Math.random()*1.8, Math.sin(ang)*spd);
+      particles.push({ mesh: sh, vel, t: 0.20 + Math.random()*0.10 });
     }
   }
 
@@ -64,6 +67,42 @@ export function createEffects(engine){
     m.position.copy(pos);
     scene.add(m);
     impacts.push({ mesh:m, t:0.12 });
+  }
+
+  // First-person runic slash arc in the air following the blade path
+  function addSlashArc({ origin, dir, comboStep=0, color=0x00f5ff }){
+    const rInner = 0.95;
+    const rOuter = 1.65;
+    const arcAngle = Math.PI * 0.72; // ~130 degrees
+    const geo = new THREE.RingGeometry(rInner, rOuter, 20, 1, -arcAngle * 0.5, arcAngle);
+    const mat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    });
+    const m = new THREE.Mesh(geo, mat);
+
+    // Place 1.35m in front of camera
+    m.position.copy(origin).addScaledVector(dir, 1.35);
+    m.lookAt(origin); // face player
+
+    // Tilt based on strike type
+    if (comboStep === 0) {
+      // Horizontal sweep right-to-left
+      m.rotation.z += 0.12;
+    } else if (comboStep === 1) {
+      // Diagonal upward cut left-to-right
+      m.rotation.z += Math.PI * 0.68;
+    } else {
+      // Vertical overhead execution chop
+      m.rotation.z += Math.PI * 0.50;
+    }
+
+    scene.add(m);
+    trails.push({ mesh: m, t: 0.18, t0: 0.18, isSlash: true });
   }
 
   // Visible melee swing helper (arc sector on the ground) for readability.
@@ -141,8 +180,13 @@ export function createEffects(engine){
       tr.t -= dt;
       if (tr.mesh){
         const k = clamp(tr.t / tr.t0, 0, 1);
-        tr.mesh.material.opacity = 0.38 * k;
-        tr.mesh.scale.setScalar(1.0 + (1.0-k)*0.05);
+        if (tr.isSlash) {
+          tr.mesh.material.opacity = 0.82 * Math.sin(k * Math.PI);
+          tr.mesh.scale.setScalar(0.96 + (1.0 - k) * 0.16);
+        } else {
+          tr.mesh.material.opacity = 0.38 * k;
+          tr.mesh.scale.setScalar(1.0 + (1.0-k)*0.05);
+        }
       }
       if (tr.t<=0){
         if (tr.mesh && tr.mesh.parent) tr.mesh.parent.remove(tr.mesh);
@@ -173,5 +217,5 @@ export function createEffects(engine){
     }
   }
 
-  return { addImpact, addArcFlash, addSwingArc, addHit, addShockwave, addShatter, tick, impacts };
+  return { addImpact, addArcFlash, addSwingArc, addSlashArc, addHit, addShockwave, addShatter, tick, impacts };
 }
