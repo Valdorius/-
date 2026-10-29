@@ -172,17 +172,29 @@ function buildMesh(parsed, opts){
 
 export async function loadVOX(url, opts){
   try{
-    if (_cache.has(url)) return await _cache.get(url);
-    const p = (async ()=>{
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const buf = await res.arrayBuffer();
-      const parsed = parseVOX(buf);
-      if (!parsed) return null;
-      return buildMesh(parsed, opts);
-    })().catch(()=>null);
-    _cache.set(url, p);
-    return await p;
+    if (!_cache.has(url)){
+      const p = (async ()=>{
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const buf = await res.arrayBuffer();
+        const parsed = parseVOX(buf);
+        if (!parsed) return null;
+        return buildMesh(parsed, opts);
+      })().catch(()=>null);
+      _cache.set(url, p);
+    }
+    const template = await _cache.get(url);
+    if (!template) return null;
+
+    // Return an independent clone so each entity (and each enemy) gets its own
+    // Mesh in the Three.js scene graph. Otherwise, adding the shared mesh to new
+    // enemies steals it from previous enemies (making them invisible).
+    // Also clone geometry & material so disposal on enemy death doesn't break other enemies.
+    const geo = template.geometry.clone();
+    const mat = template.material.clone();
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.scale.copy(template.scale);
+    return mesh;
   } catch(e){
     return null;
   }
