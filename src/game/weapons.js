@@ -44,6 +44,16 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
   const BOW_REST_POS = new THREE.Vector3(0.24, -0.25, -0.42);
   const BOW_REST_ROT = new THREE.Euler(0.15, -0.06, -0.08);
 
+  // Боевые позиции для теневых метательных клинков (парный хват)
+  const DAGGER_R_REST_POS = new THREE.Vector3(0.20, -0.22, -0.38);
+  const DAGGER_R_REST_ROT = new THREE.Euler(0.22, -0.30, 0.12);
+  const DAGGER_L_REST_POS = new THREE.Vector3(-0.20, -0.24, -0.38);
+  const DAGGER_L_REST_ROT = new THREE.Euler(0.24, 0.32, -0.14);
+
+  // Боевая позиция для рунной ручной мортиры (тяжелое осадное орудие)
+  const BOMBARD_REST_POS = new THREE.Vector3(0.18, -0.22, -0.38);
+  const BOMBARD_REST_ROT = new THREE.Euler(0.08, -0.06, 0.03);
+
   // Первоклассный риг воксельных рук от первого лица
   const fpsArms = createFpsArms({ camera });
   fpsArms.setVisible(false);
@@ -113,6 +123,23 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
     runeMat: null
   };
 
+  // refs for daggers viewmodel animation
+  const daggersAnim = {
+    gripR: null,
+    gripL: null,
+    meshR: null,
+    meshL: null,
+    runeMats: []
+  };
+
+  // refs for bombard viewmodel animation
+  const bombardAnim = {
+    gripRear: null,
+    gripFront: null,
+    muzzle: null,
+    runeMats: []
+  };
+
   function getStats(){
     return (progression && progression.stats) ? progression.stats : null;
   }
@@ -175,6 +202,21 @@ let cd = 0,
   let shieldBashCommitted = false;
   const SHIELD_BASH_CHARGE_MAX = 0.35;
 
+  // daggers combat state
+  let daggerThrowT = 0;
+  let daggerThrowHand = 0; // 0 = right hand, 1 = left hand
+  const DAGGER_THROW_DUR = 0.20;
+  let daggerFanT = 0;
+  let daggerFanCd = 0;
+  const DAGGER_FAN_DUR = 0.28;
+
+  // bombard combat state
+  let bombardRecoilT = 0;
+  const BOMBARD_RECOIL_DUR = 0.38;
+  let bombardCanisterT = 0;
+  let bombardCanisterCd = 0;
+  const BOMBARD_CANISTER_DUR = 0.44;
+
   // Circular SVG charge HUD ring around crosshair
   const ringEl = typeof document !== "undefined" ? document.getElementById("chargeRing") : null;
   const circleEl = typeof document !== "undefined" ? document.getElementById("chargeCircle") : null;
@@ -225,6 +267,21 @@ let cd = 0,
     hammer: { name: "Рунический молот", hint: "Тяжелый сокрушитель. ЛКМ — размашистый сокрушительный свип (стан/нокаут). ПКМ — удар оземь (AoE-землетрясение).", meleeRange: 2.85, dmg: 58, rate: 1.25, arc: 2.30 },
     sword: { name: "Меч и Щит", hint: "Авангард. ЛКМ — серия из 3 ударов. ПКМ — блок (80% защита) и парирование. Удерживай ПКМ+ЛКМ — зарядка удара щитом (стан толпы).", meleeRange: 2.65, dmg: 38, rate: 2.2, arc: 1.60 },
     bow: { name: "Авангардный рунический лук", hint: "Дальний бой. Удерживай ЛКМ — натяжение монолитного лука и рунный заряд, отпусти — выстрел.", dmgMin: 22, dmgMax: 56, chargeTime: 0.85, speed: 24 },
+    daggers: {
+      name: "Теневые клинки",
+      hint: "Парные клинки. ЛКМ — стремительное поочередное метание на бегу (темп 3.4/с). ПКМ — Веер клинков (5 кинжалов дугой, кровотечение).",
+      dmg: 28,
+      rate: 3.4,
+      speed: 34
+    },
+    bombard: {
+      name: "Рунная мортира",
+      hint: "Осадное орудие. ЛКМ — навесная осадная бомба (дуга, тяжелый AoE-взрыв и отбрасывание). ПКМ — картечный залп (8 раскаленных осколков).",
+      dmg: 80,
+      rate: 0.9,
+      speed: 20,
+      splash: 3.4
+    },
     // Посох: медленный большой взрывной шар (чтобы читалось и было "опасно")
     staff: { name: "Посох", hint: "Магия. Медленная взрывная сфера с высоким уроном.", dmg: 34, rate: 1.35, speed: 9.0, splash: 2.20 }
   };
@@ -232,7 +289,7 @@ let cd = 0,
   let currentClass = "knight";
   const classWeapons = {
     knight: ["hammer", "sword", "spear"],
-    ranger: ["bow"],
+    ranger: ["bow", "daggers", "bombard"],
     mage:   ["staff"]
   };
 
@@ -347,6 +404,82 @@ let cd = 0,
     sg.scale.set(1.35, 1.35, 1.35);
     shieldModel.add(sg);
     shieldHand.add(shieldModel);
+  }
+
+  function createDaggerMeshPiece(isLeft = false) {
+    const g = new THREE.Group();
+    g.name = isLeft ? "DaggerViewModel_L" : "DaggerViewModel_R";
+
+    const obsidian = new THREE.MeshStandardMaterial({ color: 0x161c28, roughness: 0.38, metalness: 0.50 });
+    const steel = new THREE.MeshStandardMaterial({ color: 0xa4bedc, roughness: 0.20, metalness: 0.88 });
+    const darkSteel = new THREE.MeshStandardMaterial({ color: 0x1a222c, roughness: 0.55, metalness: 0.70 });
+    const leather = new THREE.MeshStandardMaterial({ color: 0x2b1c14, roughness: 0.88, metalness: 0.08 });
+    const rune = new THREE.MeshStandardMaterial({
+      color: 0x00f0ff,
+      emissive: 0x00d4ff,
+      emissiveIntensity: 2.2,
+      roughness: 0.20,
+      metalness: 0.10
+    });
+
+    // 1. Рукоять с кожаной обмоткой
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.020, 0.14, 8), leather);
+    grip.position.set(0, -0.04, 0);
+    g.add(grip);
+
+    // 2. Серповидное навершие-крюк (Hooked crescent pommel)
+    const pommel = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.010, 6, 12, Math.PI * 1.3), darkSteel);
+    pommel.position.set(0, -0.12, isLeft ? 0.01 : -0.01);
+    pommel.rotation.y = Math.PI / 2;
+    g.add(pommel);
+
+    // 3. Гарда/больстер с рунным камнем
+    const guard = box(0.065, 0.018, 0.032, 0, 0.04, 0, darkSteel);
+    const guardGem = box(0.016, 0.016, 0.036, 0, 0.04, 0, rune);
+    g.add(guard, guardGem);
+
+    // 4. Изогнутый обсидиановый клинок (Curved obsidian crescent blade)
+    const b1 = box(0.038, 0.11, 0.014, 0, 0.10, 0, obsidian);
+    const b2 = box(0.034, 0.11, 0.012, 0, 0.19, -0.012, obsidian);
+    b2.rotation.x = -0.15;
+    const b3 = box(0.024, 0.11, 0.010, 0, 0.28, -0.034, obsidian);
+    b3.rotation.x = -0.28;
+    const tip = box(0.014, 0.08, 0.008, 0, 0.36, -0.062, steel);
+    tip.rotation.x = -0.36;
+    g.add(b1, b2, b3, tip);
+
+    // Стальное режущее лезвие по внешней кромке
+    const edge1 = box(0.042, 0.11, 0.006, 0, 0.10, 0.008, steel);
+    const edge2 = box(0.036, 0.11, 0.005, 0, 0.19, -0.004, steel);
+    edge2.rotation.x = -0.15;
+    const edge3 = box(0.026, 0.11, 0.004, 0, 0.28, -0.026, steel);
+    edge3.rotation.x = -0.28;
+    g.add(edge1, edge2, edge3);
+
+    // 5. Пылающая руническая жила по центру лезвия
+    const rune1 = box(0.008, 0.10, 0.016, 0, 0.10, 0, rune);
+    const rune2 = box(0.007, 0.10, 0.014, 0, 0.19, -0.012, rune);
+    rune2.rotation.x = -0.15;
+    const rune3 = box(0.006, 0.09, 0.012, 0, 0.27, -0.032, rune);
+    rune3.rotation.x = -0.28;
+    g.add(rune1, rune2, rune3);
+
+    // Якорь хвата кистью руки (IK)
+    const gripAnchor = new THREE.Object3D();
+    gripAnchor.position.set(0, -0.04, 0);
+    g.add(gripAnchor);
+
+    g.scale.set(1.4, 1.4, 1.4);
+    g.rotation.x = -Math.PI * 0.40;
+    if (isLeft) {
+      g.rotation.y = 0.20;
+      g.rotation.z = -0.15;
+    } else {
+      g.rotation.y = -0.20;
+      g.rotation.z = 0.15;
+    }
+
+    return { root: g, gripAnchor, runeMat: rune };
   }
 
   function buildModel(w) {
@@ -1004,6 +1137,132 @@ let cd = 0,
       model.position.set(0.16, 0.02, 0.03);
     }
 
+    if (w === "daggers") {
+      daggersAnim.gripR = null;
+      daggersAnim.gripL = null;
+      daggersAnim.meshR = null;
+      daggersAnim.meshL = null;
+      daggersAnim.runeMats = [];
+
+      const dR = createDaggerMeshPiece(false);
+      model.add(dR.root);
+      daggersAnim.gripR = dR.gripAnchor;
+      daggersAnim.meshR = dR.root;
+      if (dR.runeMat) daggersAnim.runeMats.push(dR.runeMat);
+
+      if (shieldModel) shieldHand.remove(shieldModel);
+      shieldModel = new THREE.Group();
+      shieldModel.name = "DaggerShieldGroup";
+      const dL = createDaggerMeshPiece(true);
+      shieldModel.add(dL.root);
+      shieldHand.add(shieldModel);
+      daggersAnim.gripL = dL.gripAnchor;
+      daggersAnim.meshL = dL.root;
+      if (dL.runeMat) daggersAnim.runeMats.push(dL.runeMat);
+
+      shieldHand.visible = true;
+    }
+
+    if (w === "bombard") {
+      bombardAnim.gripRear = null;
+      bombardAnim.gripFront = null;
+      bombardAnim.muzzle = null;
+      bombardAnim.runeMats = [];
+
+      const g = new THREE.Group();
+      g.name = "BombardViewModel";
+
+      const ironMat = new THREE.MeshStandardMaterial({ color: 0x222a36, roughness: 0.55, metalness: 0.78 });
+      const darkIronMat = new THREE.MeshStandardMaterial({ color: 0x141820, roughness: 0.65, metalness: 0.85 });
+      const stoneMat = new THREE.MeshStandardMaterial({ color: 0x38404d, roughness: 0.72, metalness: 0.40 });
+      const woodMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.88 });
+      const runeMat = new THREE.MeshStandardMaterial({
+        color: 0x00f0ff,
+        emissive: 0x00d4ff,
+        emissiveIntensity: 2.4,
+        roughness: 0.20,
+        metalness: 0.10
+      });
+      bombardAnim.runeMats.push(runeMat);
+      const brassMat = new THREE.MeshStandardMaterial({ color: 0xc8963e, roughness: 0.35, metalness: 0.80 });
+
+      // 1. Массивный ствол мортиры (Monolithic cannon barrel)
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.095, 0.55, 8), ironMat);
+      barrel.rotation.x = Math.PI / 2;
+      barrel.position.set(0, 0.04, -0.08);
+      g.add(barrel);
+
+      // Полое жерло (Bore)
+      const bore = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.12, 8), darkIronMat);
+      bore.rotation.x = Math.PI / 2;
+      bore.position.set(0, 0.04, -0.34);
+      g.add(bore);
+
+      // 2. Скульптурное дуло "Пасть Дракона/Гаргульи" (Dragon Maw muzzle)
+      const muzzleRing = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.086, 0.10, 8), stoneMat);
+      muzzleRing.rotation.x = Math.PI / 2;
+      muzzleRing.position.set(0, 0.04, -0.36);
+      g.add(muzzleRing);
+
+      // Клыки пасти гаргульи вокруг дула
+      for (let a = 0; a < 4; a++) {
+        const fang = box(0.024, 0.038, 0.045, 0, 0, 0, stoneMat);
+        const ang = a * (Math.PI / 2) + Math.PI / 4;
+        fang.position.set(Math.cos(ang) * 0.09, 0.04 + Math.sin(ang) * 0.09, -0.40);
+        g.add(fang);
+      }
+
+      // 3. Кованые обручи ствола с заклепками
+      for (let z of [-0.20, -0.05, 0.10]) {
+        const band = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.092, 0.038, 8), darkIronMat);
+        band.rotation.x = Math.PI / 2;
+        band.position.set(0, 0.04, z);
+        g.add(band);
+      }
+
+      // 4. Пылающие рунические желоба вдоль ствола (Cyan Runic inlays)
+      const runeR = box(0.012, 0.020, 0.36, 0.088, 0.04, -0.08, runeMat);
+      const runeL = box(0.012, 0.020, 0.36, -0.088, 0.04, -0.08, runeMat);
+      const runeTop = box(0.020, 0.012, 0.36, 0, 0.128, -0.08, runeMat);
+      g.add(runeR, runeL, runeTop);
+
+      // 5. Деревянное ложе и рукоять (Heavy stock)
+      const foreStock = box(0.12, 0.09, 0.44, 0, -0.035, -0.06, woodMat);
+      g.add(foreStock);
+      const rearGrip = box(0.075, 0.18, 0.12, 0, -0.14, 0.18, woodMat);
+      rearGrip.rotation.x = -0.32;
+      const buttPlate = box(0.082, 0.035, 0.14, 0, -0.22, 0.22, darkIronMat);
+      buttPlate.rotation.x = -0.32;
+      g.add(rearGrip, buttPlate);
+
+      // 6. Латунный замок и курок (Flintlock hammer)
+      const lockBox = box(0.04, 0.06, 0.10, 0.065, 0.04, 0.14, brassMat);
+      const hammer = box(0.02, 0.07, 0.03, 0.07, 0.09, 0.14, brassMat);
+      hammer.rotation.z = -0.22;
+      g.add(lockBox, hammer);
+
+      // Якоря для IK рук и дула
+      const muzzleAnchor = new THREE.Object3D();
+      muzzleAnchor.position.set(0, 0.04, -0.44);
+      g.add(muzzleAnchor);
+      bombardAnim.muzzle = muzzleAnchor;
+
+      // Правая рука (на курке/рукояти сзади)
+      const gripRear = new THREE.Object3D();
+      gripRear.position.set(0, -0.13, 0.16);
+      g.add(gripRear);
+      bombardAnim.gripRear = gripRear;
+
+      // Левая рука (поддерживает массивное цевье снизу спереди)
+      const gripFront = new THREE.Object3D();
+      gripFront.position.set(0, -0.07, -0.12);
+      g.add(gripFront);
+      bombardAnim.gripFront = gripFront;
+
+      g.scale.set(1.4, 1.4, 1.4);
+      model.add(g);
+    }
+
     model.scale.setScalar(MODEL_SCALE);
     hand.add(model);
   }
@@ -1119,6 +1378,164 @@ let cd = 0,
       splash: Math.max(defs.staff.splash, (getStats()?.extraSplash ?? 0)),
       pierce: (getStats()?.projectilePierce ?? 0)
     });
+  }
+
+  function fireSingleDagger(handIndex) {
+    if (!spawnProjectile) return;
+
+    const camPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    camera.getWorldPosition(camPos);
+    camera.getWorldDirection(camDir).normalize();
+
+    const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    const origin = camPos.clone();
+    if (handIndex === 0) {
+      origin.addScaledVector(camRight, 0.16);
+    } else {
+      origin.addScaledVector(camRight, -0.16);
+    }
+    origin.y -= 0.10;
+
+    const aimPoint = camPos.clone().addScaledVector(camDir, 60);
+    const dir = aimPoint.sub(origin).normalize();
+
+    const dmgMul = (getStats()?.damageMul ?? 1) * (getStats()?.arenaDamageMul ?? 1);
+
+    spawnProjectile({
+      kind: "dagger",
+      origin,
+      dir,
+      speed: defs.daggers.speed * (getStats()?.projectileSpeedMul ?? 1),
+      life: 1.4,
+      damage: defs.daggers.dmg * dmgMul,
+      radius: 0.22,
+      splash: (getStats()?.extraSplash ?? 0),
+      pierce: (getStats()?.projectilePierce ?? 0),
+      team: "player"
+    });
+
+    camImpulseZ = (handIndex === 0 ? -0.015 : 0.015);
+    fx?.addArcFlash?.(origin, 0x00f0ff, 0.12, 0.85);
+  }
+
+  function fireDaggerFan() {
+    if (!spawnProjectile) return;
+
+    const camPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    camera.getWorldPosition(camPos);
+    camera.getWorldDirection(camDir).normalize();
+
+    const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+    const origin = camPos.clone().addScaledVector(camDir, 0.35);
+    origin.y -= 0.10;
+
+    const fanAngles = [-0.32, -0.16, 0.0, 0.16, 0.32];
+    const dmgMul = (getStats()?.damageMul ?? 1) * (getStats()?.arenaDamageMul ?? 1);
+
+    for (const ang of fanAngles) {
+      const d = camDir.clone().applyAxisAngle(camUp, ang).normalize();
+      spawnProjectile({
+        kind: "dagger",
+        origin: origin.clone(),
+        dir: d,
+        speed: (defs.daggers.speed + 4) * (getStats()?.projectileSpeedMul ?? 1),
+        life: 1.3,
+        damage: (defs.daggers.dmg * 0.88) * dmgMul,
+        radius: 0.24,
+        bleed: { dps: 8, duration: 3.5 },
+        splash: (getStats()?.extraSplash ?? 0),
+        pierce: (getStats()?.projectilePierce ?? 0),
+        team: "player"
+      });
+    }
+
+    camImpulseX = 0.04;
+    fx?.addArcFlash?.(origin, 0x00f0ff, 0.35, 0.95);
+  }
+
+  function fireBombardBomb() {
+    if (!spawnProjectile) return;
+
+    const origin = new THREE.Vector3();
+    const camPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    camera.getWorldPosition(camPos);
+    camera.getWorldDirection(camDir).normalize();
+
+    if (bombardAnim.muzzle && typeof bombardAnim.muzzle.getWorldPosition === "function") {
+      bombardAnim.muzzle.getWorldPosition(origin);
+    } else {
+      origin.copy(camPos).addScaledVector(camDir, 0.45);
+      origin.y -= 0.12;
+    }
+
+    const aimPoint = camPos.clone().addScaledVector(camDir, 60);
+    const dir = aimPoint.sub(origin).normalize();
+
+    const dmgMul = (getStats()?.damageMul ?? 1) * (getStats()?.arenaDamageMul ?? 1);
+
+    spawnProjectile({
+      kind: "bomb",
+      origin,
+      dir,
+      speed: defs.bombard.speed * (getStats()?.projectileSpeedMul ?? 1),
+      life: 3.2,
+      damage: defs.bombard.dmg * dmgMul,
+      radius: 0.28,
+      splash: Math.max(defs.bombard.splash, getStats()?.extraSplash ?? 0),
+      team: "player"
+    });
+
+    camImpulseX = 0.075;
+    camImpulseZ = (Math.random() - 0.5) * 0.025;
+    fx?.addArcFlash?.(origin, 0xff8822, 0.40, 0.95);
+    fx?.addHit?.(origin, "bomb", 1.2);
+  }
+
+  function fireBombardCanister() {
+    if (!spawnProjectile) return;
+
+    const origin = new THREE.Vector3();
+    const camPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    camera.getWorldPosition(camPos);
+    camera.getWorldDirection(camDir).normalize();
+
+    if (bombardAnim.muzzle && typeof bombardAnim.muzzle.getWorldPosition === "function") {
+      bombardAnim.muzzle.getWorldPosition(origin);
+    } else {
+      origin.copy(camPos).addScaledVector(camDir, 0.45);
+      origin.y -= 0.12;
+    }
+
+    const dmgMul = (getStats()?.damageMul ?? 1) * (getStats()?.arenaDamageMul ?? 1);
+    const count = 8;
+
+    for (let i = 0; i < count; i++) {
+      const spreadX = (Math.random() - 0.5) * 0.28;
+      const spreadY = (Math.random() - 0.5) * 0.20;
+      const spreadZ = (Math.random() - 0.5) * 0.14;
+      const pDir = camDir.clone().add(new THREE.Vector3(spreadX, spreadY, spreadZ)).normalize();
+
+      spawnProjectile({
+        kind: "shrapnel",
+        origin: origin.clone(),
+        dir: pDir,
+        speed: (26 + Math.random() * 8) * (getStats()?.projectileSpeedMul ?? 1),
+        life: 0.85,
+        damage: 22 * dmgMul,
+        radius: 0.20,
+        pierce: 1,
+        team: "player"
+      });
+    }
+
+    camImpulseX = 0.13;
+    camImpulseZ = (Math.random() - 0.5) * 0.04;
+    fx?.addArcFlash?.(origin, 0xffaa33, 0.55, 1.0);
+    fx?.addHit?.(origin, "bomb", 1.8);
   }
 
   function triggerCamImpulse(step) {
@@ -2139,6 +2556,12 @@ let cd = 0,
     shieldBashCharging = false;
     shieldBashCharge = 0;
     shieldBashCommitted = false;
+    daggerThrowT = 0;
+    daggerFanT = 0;
+    daggerFanCd = 0;
+    bombardRecoilT = 0;
+    bombardCanisterT = 0;
+    bombardCanisterCd = 0;
     setChargeRing(0);
 
     buildModel(w);
@@ -2150,6 +2573,8 @@ let cd = 0,
       else if (w === "spear") fpsArms.setRuneColor(0x00f0ff);
       else if (w === "sword") fpsArms.setRuneColor(0xffcc22);
       else if (w === "bow") fpsArms.setRuneColor(0x00f0ff);
+      else if (w === "daggers") fpsArms.setRuneColor(0x00f0ff);
+      else if (w === "bombard") fpsArms.setRuneColor(0xff8822);
       else if (w === "staff") fpsArms.setRuneColor(0xff4455);
     }
 
@@ -2164,6 +2589,14 @@ let cd = 0,
     } else if (w === "bow") {
       hand.position.copy(BOW_REST_POS);
       hand.rotation.copy(BOW_REST_ROT);
+    } else if (w === "daggers") {
+      hand.position.copy(DAGGER_R_REST_POS);
+      hand.rotation.copy(DAGGER_R_REST_ROT);
+      shieldHand.position.copy(DAGGER_L_REST_POS);
+      shieldHand.rotation.copy(DAGGER_L_REST_ROT);
+    } else if (w === "bombard") {
+      hand.position.copy(BOMBARD_REST_POS);
+      hand.rotation.copy(BOMBARD_REST_ROT);
     } else {
       hand.position.copy(baseHandPos);
       hand.rotation.copy(baseHandRot);
@@ -2453,6 +2886,194 @@ let cd = 0,
       }
     }
 
+    if (weapon === "daggers") {
+      if (daggerFanCd > 0) daggerFanCd = Math.max(0, daggerFanCd - dt);
+
+      if (daggerFanT > 0) {
+        daggerFanT -= dt;
+        const p = 1 - daggerFanT / DAGGER_FAN_DUR;
+        const thrust = Math.sin(p * Math.PI);
+
+        // Both daggers whip outward and forward simultaneously
+        hand.position.set(
+          DAGGER_R_REST_POS.x + 0.08 * thrust,
+          DAGGER_R_REST_POS.y + 0.05 * thrust,
+          DAGGER_R_REST_POS.z - 0.14 * thrust
+        );
+        hand.rotation.set(
+          DAGGER_R_REST_ROT.x + 0.35 * thrust,
+          DAGGER_R_REST_ROT.y - 0.20 * thrust,
+          DAGGER_R_REST_ROT.z - 0.35 * thrust
+        );
+
+        shieldHand.position.set(
+          DAGGER_L_REST_POS.x - 0.08 * thrust,
+          DAGGER_L_REST_POS.y + 0.05 * thrust,
+          DAGGER_L_REST_POS.z - 0.14 * thrust
+        );
+        shieldHand.rotation.set(
+          DAGGER_L_REST_ROT.x + 0.35 * thrust,
+          DAGGER_L_REST_ROT.y + 0.20 * thrust,
+          DAGGER_L_REST_ROT.z + 0.35 * thrust
+        );
+
+        player?.avatar?.setCombatAction?.({ weapon: "daggers", action: "fan", progress: p });
+
+        if (daggerFanT <= 0) {
+          daggerFanT = 0;
+          player?.avatar?.setCombatAction?.(null);
+          hand.position.copy(DAGGER_R_REST_POS);
+          hand.rotation.copy(DAGGER_R_REST_ROT);
+          shieldHand.position.copy(DAGGER_L_REST_POS);
+          shieldHand.rotation.copy(DAGGER_L_REST_ROT);
+        }
+      } else if (daggerThrowT > 0) {
+        daggerThrowT -= dt;
+        const p = 1 - daggerThrowT / DAGGER_THROW_DUR;
+        const thrust = Math.sin(p * Math.PI);
+
+        // Previous throw hand was (1 - daggerThrowHand)
+        const thrownHand = 1 - daggerThrowHand;
+        if (thrownHand === 0) {
+          // Right hand snaps forward
+          hand.position.set(
+            DAGGER_R_REST_POS.x - 0.03 * thrust,
+            DAGGER_R_REST_POS.y + 0.06 * thrust,
+            DAGGER_R_REST_POS.z - 0.16 * thrust
+          );
+          hand.rotation.set(
+            DAGGER_R_REST_ROT.x + 0.40 * thrust,
+            DAGGER_R_REST_ROT.y - 0.15 * thrust,
+            DAGGER_R_REST_ROT.z - 0.22 * thrust
+          );
+          shieldHand.position.copy(DAGGER_L_REST_POS);
+          shieldHand.rotation.copy(DAGGER_L_REST_ROT);
+          player?.avatar?.setCombatAction?.({ weapon: "daggers", action: "throw_r", progress: p });
+        } else {
+          // Left hand snaps forward
+          shieldHand.position.set(
+            DAGGER_L_REST_POS.x + 0.03 * thrust,
+            DAGGER_L_REST_POS.y + 0.06 * thrust,
+            DAGGER_L_REST_POS.z - 0.16 * thrust
+          );
+          shieldHand.rotation.set(
+            DAGGER_L_REST_ROT.x + 0.40 * thrust,
+            DAGGER_L_REST_ROT.y + 0.15 * thrust,
+            DAGGER_L_REST_ROT.z + 0.22 * thrust
+          );
+          hand.position.copy(DAGGER_R_REST_POS);
+          hand.rotation.copy(DAGGER_R_REST_ROT);
+          player?.avatar?.setCombatAction?.({ weapon: "daggers", action: "throw_l", progress: p });
+        }
+
+        if (daggerThrowT <= 0) {
+          daggerThrowT = 0;
+          player?.avatar?.setCombatAction?.(null);
+          hand.position.copy(DAGGER_R_REST_POS);
+          hand.rotation.copy(DAGGER_R_REST_ROT);
+          shieldHand.position.copy(DAGGER_L_REST_POS);
+          shieldHand.rotation.copy(DAGGER_L_REST_ROT);
+        }
+      } else {
+        player?.avatar?.setCombatAction?.(null);
+        // Idle breathing sway
+        const time = (performance.now() || 0) * 0.0025;
+        hand.position.set(DAGGER_R_REST_POS.x, DAGGER_R_REST_POS.y + Math.sin(time) * 0.004, DAGGER_R_REST_POS.z);
+        hand.rotation.copy(DAGGER_R_REST_ROT);
+        shieldHand.position.set(DAGGER_L_REST_POS.x, DAGGER_L_REST_POS.y + Math.cos(time) * 0.004, DAGGER_L_REST_POS.z);
+        shieldHand.rotation.copy(DAGGER_L_REST_ROT);
+
+        if (rightJustPressed && daggerFanCd <= 0 && cd <= 0) {
+          daggerFanCd = 1.2;
+          cd = 0.45;
+          daggerFanT = DAGGER_FAN_DUR;
+          fireDaggerFan();
+        } else if ((justPressed || mouseDown) && cd <= 0) {
+          cd = 1 / (defs.daggers.rate * (getStats()?.attackSpeedMul ?? 1));
+          daggerThrowT = DAGGER_THROW_DUR;
+          fireSingleDagger(daggerThrowHand);
+          daggerThrowHand = 1 - daggerThrowHand;
+        }
+      }
+    }
+
+    if (weapon === "bombard") {
+      if (bombardCanisterCd > 0) bombardCanisterCd = Math.max(0, bombardCanisterCd - dt);
+
+      if (bombardCanisterT > 0) {
+        bombardCanisterT -= dt;
+        const p = 1 - bombardCanisterT / BOMBARD_CANISTER_DUR;
+        const kick = p < 0.20 ? (p / 0.20) : Math.max(0, 1 - (p - 0.20) / 0.80);
+
+        hand.position.set(
+          BOMBARD_REST_POS.x,
+          BOMBARD_REST_POS.y + 0.10 * kick,
+          BOMBARD_REST_POS.z + 0.24 * kick
+        );
+        hand.rotation.set(
+          BOMBARD_REST_ROT.x + 0.38 * kick,
+          BOMBARD_REST_ROT.y + 0.05 * kick,
+          BOMBARD_REST_ROT.z - 0.14 * kick
+        );
+        player?.avatar?.setCombatAction?.({ weapon: "bombard", action: "canister", progress: p });
+
+        if (bombardCanisterT <= 0) {
+          bombardCanisterT = 0;
+          player?.avatar?.setCombatAction?.(null);
+          hand.position.copy(BOMBARD_REST_POS);
+          hand.rotation.copy(BOMBARD_REST_ROT);
+        }
+      } else if (bombardRecoilT > 0) {
+        bombardRecoilT -= dt;
+        const p = 1 - bombardRecoilT / BOMBARD_RECOIL_DUR;
+        const kick = p < 0.24 ? (p / 0.24) : Math.max(0, 1 - (p - 0.24) / 0.76);
+
+        hand.position.set(
+          BOMBARD_REST_POS.x,
+          BOMBARD_REST_POS.y + 0.06 * kick,
+          BOMBARD_REST_POS.z + 0.16 * kick
+        );
+        hand.rotation.set(
+          BOMBARD_REST_ROT.x + 0.24 * kick,
+          BOMBARD_REST_ROT.y,
+          BOMBARD_REST_ROT.z - 0.08 * kick
+        );
+        player?.avatar?.setCombatAction?.({ weapon: "bombard", action: "fire", progress: p });
+
+        if (bombardRecoilT <= 0) {
+          bombardRecoilT = 0;
+          player?.avatar?.setCombatAction?.(null);
+          hand.position.copy(BOMBARD_REST_POS);
+          hand.rotation.copy(BOMBARD_REST_ROT);
+        }
+      } else {
+        player?.avatar?.setCombatAction?.(null);
+        // Heavy mechanical sway
+        const time = (performance.now() || 0) * 0.0018;
+        hand.position.set(
+          BOMBARD_REST_POS.x,
+          BOMBARD_REST_POS.y + Math.sin(time) * 0.003,
+          BOMBARD_REST_POS.z
+        );
+        hand.rotation.set(
+          BOMBARD_REST_ROT.x + Math.sin(time * 0.8) * 0.004,
+          BOMBARD_REST_ROT.y,
+          BOMBARD_REST_ROT.z
+        );
+
+        if (rightJustPressed && bombardCanisterCd <= 0 && cd <= 0) {
+          bombardCanisterCd = 1.8;
+          cd = 1.0;
+          bombardCanisterT = BOMBARD_CANISTER_DUR;
+          fireBombardCanister();
+        } else if (justPressed && cd <= 0) {
+          cd = 1 / (defs.bombard.rate * (getStats()?.attackSpeedMul ?? 1));
+          bombardRecoilT = BOMBARD_RECOIL_DUR;
+          fireBombardBomb();
+        }
+      }
+    }
+
     // Smooth camera tilt decay
     if (camera) {
       camImpulseZ *= Math.exp(-dt * 22.0);
@@ -2536,6 +3157,32 @@ let cd = 0,
         _tmpQuatL.set(0.1, -0.15, 0.05, 0.98).normalize();
 
         fpsArms.update(dt, "staff", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
+      } else if (weapon === "daggers" && daggersAnim.gripR && daggersAnim.gripL) {
+        shieldHand.updateMatrixWorld(true);
+
+        daggersAnim.gripR.getWorldPosition(_tmpPosR);
+        camera.worldToLocal(_tmpPosR);
+        daggersAnim.gripR.getWorldQuaternion(_tmpQuatR);
+        _tmpQuatR.premultiply(_camInvQuat);
+
+        daggersAnim.gripL.getWorldPosition(_tmpPosL);
+        camera.worldToLocal(_tmpPosL);
+        daggersAnim.gripL.getWorldQuaternion(_tmpQuatL);
+        _tmpQuatL.premultiply(_camInvQuat);
+
+        fpsArms.update(dt, "daggers", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
+      } else if (weapon === "bombard" && bombardAnim.gripRear && bombardAnim.gripFront) {
+        bombardAnim.gripRear.getWorldPosition(_tmpPosR);
+        camera.worldToLocal(_tmpPosR);
+        bombardAnim.gripRear.getWorldQuaternion(_tmpQuatR);
+        _tmpQuatR.premultiply(_camInvQuat);
+
+        bombardAnim.gripFront.getWorldPosition(_tmpPosL);
+        camera.worldToLocal(_tmpPosL);
+        bombardAnim.gripFront.getWorldQuaternion(_tmpQuatL);
+        _tmpQuatL.premultiply(_camInvQuat);
+
+        fpsArms.update(dt, "bombard", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
       }
     }
   }

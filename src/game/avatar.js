@@ -283,7 +283,51 @@ export function createVoxelAvatar({
       wpart({ sx: 0.05, sy: 1.55, sz: 0.05, x: 0, y: 0.35, z: 0, mat: matWeaponWood, name: "Shaft" });
       wpart({ sx: 0.12, sy: 0.16, sz: 0.12, x: 0, y: 1.15, z: 0, mat: matWeaponDark, name: "Crown" });
       wpart({ sx: 0.14, sy: 0.22, sz: 0.14, x: 0, y: 1.28, z: 0, mat: matAmberRune, name: "Crystal" });
+    } else if (wType === "daggers") {
+      // 3rd-person Shadow Dagger (Main Hand)
+      wpart({ sx: 0.035, sy: 0.16, sz: 0.035, x: 0, y: -0.02, z: 0, mat: matWeaponWood, name: "Grip" });
+      wpart({ sx: 0.05, sy: 0.05, sz: 0.03, x: 0, y: -0.12, z: 0, mat: matWeaponDark, name: "Pommel" });
+      wpart({ sx: 0.11, sy: 0.025, sz: 0.05, x: 0, y: 0.08, z: 0, mat: matWeaponDark, name: "Guard" });
+      wpart({ sx: 0.065, sy: 0.32, sz: 0.016, x: 0, y: 0.24, z: 0, mat: matWeaponDark, name: "Blade" });
+      wpart({ sx: 0.045, sy: 0.18, sz: 0.012, x: 0, y: 0.42, z: -0.04, mat: matWeaponSteel, name: "Tip" });
+      wpart({ sx: 0.015, sy: 0.42, sz: 0.020, x: 0, y: 0.26, z: 0, mat: matCyanRune, name: "RuneSpine" });
+    } else if (wType === "bombard") {
+      // 3rd-person Runic Hand Bombard
+      wpart({ sx: 0.18, sy: 0.18, sz: 0.65, x: 0, y: 0.08, z: -0.12, mat: matWeaponDark, name: "Barrel" });
+      wpart({ sx: 0.23, sy: 0.23, sz: 0.14, x: 0, y: 0.08, z: -0.44, mat: matWeaponSteel, name: "DragonMaw" });
+      wpart({ sx: 0.20, sy: 0.20, sz: 0.06, x: 0, y: 0.08, z: -0.22, mat: matWeaponSteel, name: "Band1" });
+      wpart({ sx: 0.20, sy: 0.20, sz: 0.06, x: 0, y: 0.08, z: 0.05, mat: matWeaponSteel, name: "Band2" });
+      wpart({ sx: 0.14, sy: 0.16, sz: 0.45, x: 0, y: -0.02, z: 0.10, mat: matWeaponWood, name: "Stock" });
+      wpart({ sx: 0.025, sy: 0.04, sz: 0.50, x: 0.095, y: 0.08, z: -0.12, mat: matCyanRune, name: "RuneR" });
+      wpart({ sx: 0.025, sy: 0.04, sz: 0.50, x: -0.095, y: 0.08, z: -0.12, mat: matCyanRune, name: "RuneL" });
     }
+    return wg;
+  }
+
+  function createThirdPersonDagger() {
+    const wg = new THREE.Group();
+    wg.name = "TP_Dagger_Offhand";
+    wg.layers.set(2);
+
+    function wpart({ sx, sy, sz, x=0, y=0, z=0, mat=matWeaponSteel, name="" }) {
+      const m = new THREE.Mesh(box, mat);
+      m.scale.set(sx, sy, sz);
+      m.position.set(x, y, z);
+      if (name) m.name = name;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.layers.set(2);
+      wg.add(m);
+      return m;
+    }
+
+    wpart({ sx: 0.035, sy: 0.16, sz: 0.035, x: 0, y: -0.02, z: 0, mat: matWeaponWood });
+    wpart({ sx: 0.05, sy: 0.05, sz: 0.03, x: 0, y: -0.12, z: 0, mat: matWeaponDark });
+    wpart({ sx: 0.11, sy: 0.025, sz: 0.05, x: 0, y: 0.08, z: 0, mat: matWeaponDark });
+    wpart({ sx: 0.065, sy: 0.32, sz: 0.016, x: 0, y: 0.24, z: 0, mat: matWeaponDark });
+    wpart({ sx: 0.045, sy: 0.18, sz: 0.012, x: 0, y: 0.42, z: -0.04, mat: matWeaponSteel });
+    wpart({ sx: 0.015, sy: 0.42, sz: 0.020, x: 0, y: 0.26, z: 0, mat: matCyanRune });
+
     return wg;
   }
 
@@ -357,7 +401,20 @@ export function createVoxelAvatar({
     activeWeaponMesh = createThirdPersonWeapon(wType);
     weaponAnchor.add(activeWeaponMesh);
 
-    shieldAnchor.visible = (wType === "sword");
+    if (activeShieldMesh) shieldAnchor.remove(activeShieldMesh);
+    if (wType === "sword") {
+      activeShieldMesh = createThirdPersonShield();
+      shieldAnchor.add(activeShieldMesh);
+      shieldAnchor.position.set(0.08, -0.38, 0.04);
+      shieldAnchor.visible = true;
+    } else if (wType === "daggers") {
+      activeShieldMesh = createThirdPersonDagger();
+      shieldAnchor.add(activeShieldMesh);
+      shieldAnchor.position.set(-0.02, -0.38, 0.0);
+      shieldAnchor.visible = true;
+    } else {
+      shieldAnchor.visible = false;
+    }
   }
 
   // Combat animation state
@@ -700,6 +757,39 @@ export function createVoxelAvatar({
       armRRotX = 0.85 * k + 0.40 * (1 - k);
       armRRotY = 0.38 * k - 0.15 * (1 - k);
       armRRotZ = 0.22 * k + 0.15 * (1 - k);
+    } else if (combatAction && combatAction.weapon === "daggers") {
+      const p = Math.max(0, Math.min(1, combatAction.progress || 0));
+      if (combatAction.action === "throw_r") {
+        const snap = Math.sin(p * Math.PI);
+        armRRotX = 0.45 + 0.90 * snap;
+        armRRotY = -0.25 * snap;
+        torsoRotY = -0.15 * snap;
+      } else if (combatAction.action === "throw_l") {
+        const snap = Math.sin(p * Math.PI);
+        armLRotX = 0.45 + 0.90 * snap;
+        armLRotY = 0.25 * snap;
+        torsoRotY = 0.15 * snap;
+      } else if (combatAction.action === "fan") {
+        const snap = Math.sin(p * Math.PI);
+        armRRotX = 0.40 + 0.75 * snap;
+        armRRotZ = 0.20 + 0.45 * snap;
+        armLRotX = 0.40 + 0.75 * snap;
+        armLRotZ = -0.20 - 0.45 * snap;
+        torsoRotX = -0.12 * snap;
+      }
+    } else if (combatAction && combatAction.weapon === "bombard") {
+      const p = Math.max(0, Math.min(1, combatAction.progress || 0));
+      const kick = Math.sin(p * Math.PI);
+      const mul = combatAction.action === "canister" ? 1.5 : 1.0;
+      armRRotX = 0.55 + 0.35 * kick * mul;
+      armLRotX = 0.65 + 0.45 * kick * mul;
+      torsoRotX = -0.15 * kick * mul;
+    } else if (currentWeaponId === "bombard") {
+      // Steady two-handed cradle for heavy bombard cannon
+      armRRotX = 0.55;
+      armRRotY = -0.20;
+      armLRotX = 0.65;
+      armLRotY = 0.32;
     } else {
       // Locomotion sway blended into arm swing when moving
       if (state.moving > 0.05) {

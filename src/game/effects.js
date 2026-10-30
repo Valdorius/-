@@ -29,20 +29,24 @@ export function createEffects(engine){
   function addHit(pos, kind="generic", strength=1){
     // colors per damage type
     let color = 0xffa0a8;
-    if (kind === "melee" || kind === "spear") color = 0x00f5ff;
+    if (kind === "melee" || kind === "spear" || kind === "dagger") color = 0x00f5ff;
+    if (kind === "bomb") color = 0xff6622;
+    if (kind === "shrapnel") color = 0xffaa22;
     if (kind === "arrow") color = 0xdfe9ff;
     if (kind === "bolt") color = 0xbda7ff;
     if (kind === "spell") color = 0xff5566;
     if (kind === "chain") color = 0xbda7ff;
     if (kind === "enemyOrb" || kind === "ranged") color = 0x57c8ff;
 
-    // For melee/spear: do NOT spawn giant opaque sphere in front of camera!
-    if (kind !== "melee" && kind !== "spear") {
+    // For melee/spear/dagger: clean bright spark flash instead of a giant solid ball
+    if (kind === "melee" || kind === "spear" || kind === "dagger") {
+      addArcFlash(pos, 0x00f5ff, 0.08 * strength, 0.85);
+    } else if (kind === "bomb") {
+      addImpact(pos, 2.0 * strength, 0xff5511);
+      addArcFlash(pos, 0xff7722, 0.40 * strength, 0.75);
+    } else {
       addImpact(pos, 1.15*strength, color);
       addArcFlash(pos, color, 0.18 + 0.10*strength, 0.55);
-    } else {
-      // Clean, bright spark flash instead of a giant solid ball
-      addArcFlash(pos, 0x00f5ff, 0.07 * strength, 0.85);
     }
 
     // shards / sparks
