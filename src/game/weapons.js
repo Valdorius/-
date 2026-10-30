@@ -984,7 +984,6 @@ let cd = 0,
       }
     }
   }
-  }
 
   function buildModel(w) {
     if (model) hand.remove(model);
