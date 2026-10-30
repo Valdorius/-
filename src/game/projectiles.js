@@ -7,13 +7,70 @@ export function createProjectiles({ engine, world, fx }){
 
   // Player projectiles: Monolithic Vanguard Arrow (Concept 4)
   const shaftGeo = new THREE.BoxGeometry(0.018, 0.018, 0.60);
-  const headGeo  = new THREE.BoxGeometry(0.055, 0.018, 0.12);
-  const headGlowGeo = new THREE.BoxGeometry(0.024, 0.014, 0.08);
+  const collarGeo = new THREE.BoxGeometry(0.024, 0.024, 0.040);
   const fletchGeo= new THREE.BoxGeometry(0.006, 0.042, 0.10);
   const fletchSideGeo= new THREE.BoxGeometry(0.038, 0.020, 0.10);
   const boltGeo  = new THREE.BoxGeometry(0.10,0.10,0.24);
 
+  // 3D граненый стальной наконечник летящей стрелы (острие направлено вперед по -Z)
+  const bhTip    = [0, 0, -0.45];
+  const bhRidgeT = [0, 0.016, -0.34];
+  const bhRidgeB = [0, -0.016, -0.34];
+  const bhWingR  = [0.048, 0, -0.28];
+  const bhWingL  = [-0.048, 0, -0.28];
+  const bhColT   = [0, 0.012, -0.24];
+  const bhColB   = [0, -0.012, -0.24];
+  const bhColR   = [0.012, 0, -0.24];
+  const bhColL   = [-0.012, 0, -0.24];
+
+  const bhTris = [
+    // Верхние и нижние передние лезвия, сходящиеся в колющую иглу (-Z)
+    bhTip, bhWingR, bhRidgeT,
+    bhTip, bhRidgeT, bhWingL,
+    bhTip, bhRidgeB, bhWingR,
+    bhTip, bhWingL, bhRidgeB,
+
+    // Задние зазубренные скосы (barbs) к посадочной втулке
+    bhRidgeT, bhWingR, bhColT,
+    bhWingR, bhColR, bhColT,
+    bhRidgeT, bhColT, bhWingL,
+    bhWingL, bhColT, bhColL,
+
+    bhRidgeB, bhColB, bhWingR,
+    bhWingR, bhColB, bhColR,
+    bhRidgeB, bhWingL, bhColB,
+    bhWingL, bhColL, bhColB,
+  ];
+  const headGeo = new THREE.BufferGeometry();
+  headGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(bhTris.flat()), 3));
+  headGeo.computeVertexNormals();
+
+  // Светящийся рунный хребет наконечника
+  const bhCTip    = [0, 0, -0.435];
+  const bhCRidgeT = [0, 0.009, -0.345];
+  const bhCRidgeB = [0, -0.009, -0.345];
+  const bhCWingR  = [0.018, 0, -0.29];
+  const bhCWingL  = [-0.018, 0, -0.29];
+  const bhCColT   = [0, 0.007, -0.25];
+  const bhCColB   = [0, -0.007, -0.25];
+
+  const bhCoreTris = [
+    bhCTip, bhCWingR, bhCRidgeT,
+    bhCTip, bhCRidgeT, bhCWingL,
+    bhCTip, bhRidgeB, bhCWingR,
+    bhCTip, bhCWingL, bhRidgeB,
+
+    bhCRidgeT, bhCWingR, bhCColT,
+    bhCRidgeT, bhCColT, bhCWingL,
+    bhCRidgeB, bhColB, bhCWingR,
+    bhCRidgeB, bhCWingL, bhColB,
+  ];
+  const headGlowGeo = new THREE.BufferGeometry();
+  headGlowGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(bhCoreTris.flat()), 3));
+  headGlowGeo.computeVertexNormals();
+
   const matArrowShaft = new THREE.MeshStandardMaterial({ color: 0x181e2a, roughness:0.45, metalness:0.35 });
+  const matArrowCollar= new THREE.MeshStandardMaterial({ color: 0x364052, roughness:0.30, metalness:0.70 });
   const matArrowHead  = new THREE.MeshStandardMaterial({ color: 0xa4bddc, roughness:0.20, metalness:0.85, emissive: 0x00d8ff, emissiveIntensity: 0.60 });
   const matArrowGlow  = new THREE.MeshBasicMaterial({ color: 0x80f8ff });
   const matFletch     = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
@@ -36,10 +93,10 @@ export function createProjectiles({ engine, world, fx }){
     if (kind === "arrow"){
       const g = new THREE.Group();
       const shaft = new THREE.Mesh(shaftGeo, matArrowShaft);
+      const collar = new THREE.Mesh(collarGeo, matArrowCollar);
+      collar.position.z = -0.24;
       const head  = new THREE.Mesh(headGeo, matArrowHead);
-      head.position.z = -0.28;
       const headGlow = new THREE.Mesh(headGlowGeo, matArrowGlow);
-      headGlow.position.z = -0.29;
       const f1    = new THREE.Mesh(fletchGeo, matFletch);
       f1.position.set(0, 0.016, 0.22);
       const f2    = new THREE.Mesh(fletchSideGeo, matFletch);
@@ -48,7 +105,7 @@ export function createProjectiles({ engine, world, fx }){
       const f3    = new THREE.Mesh(fletchSideGeo, matFletch);
       f3.position.set(-0.016, -0.008, 0.22);
       f3.rotation.z = Math.PI / 6;
-      g.add(shaft, head, headGlow, f1, f2, f3);
+      g.add(shaft, collar, head, headGlow, f1, f2, f3);
       return g;
     }
     if (kind === "bolt"){

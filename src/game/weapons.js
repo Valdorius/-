@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_14";
+import { createFpsArms } from "./fps_arms.js?v=20261030_15";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -820,9 +820,72 @@ let cd = 0,
       arrowGroup.add(box(0.018, 0.018, 0.62, 0, 0, 0.22, obsidianMat));
       // Energy core spine along arrow
       arrowGroup.add(box(0.008, 0.006, 0.58, 0, 0.008, 0.22, cyanRuneMat));
-      // Diamond-faceted steel broadhead
-      arrowGroup.add(box(0.055, 0.018, 0.12, 0, 0, 0.54, steelEdge));
-      arrowGroup.add(box(0.025, 0.014, 0.08, 0, 0, 0.56, cyanGlowMat));
+
+      // 3D граненый монолитный наконечник (Broadhead с острым колющим острием)
+      const headG = new THREE.Group();
+      // Посадочная граненая втулка (ferrule collar)
+      headG.add(box(0.024, 0.024, 0.040, 0, 0, 0.46, alloyMat));
+
+      // Стальное 3D граненое лезвие наконечника с острым жалом (0, 0, 0.65)
+      const bhTip    = [0, 0, 0.65];
+      const bhRidgeT = [0, 0.016, 0.54];
+      const bhRidgeB = [0, -0.016, 0.54];
+      const bhWingR  = [0.048, 0, 0.48];
+      const bhWingL  = [-0.048, 0, 0.48];
+      const bhColT   = [0, 0.012, 0.44];
+      const bhColB   = [0, -0.012, 0.44];
+      const bhColR   = [0.012, 0, 0.44];
+      const bhColL   = [-0.012, 0, 0.44];
+
+      const bhTris = [
+        // Верхние и нижние передние лезвия, сходящиеся в колющую иглу
+        bhTip, bhRidgeT, bhWingR,
+        bhTip, bhWingL, bhRidgeT,
+        bhTip, bhWingR, bhRidgeB,
+        bhTip, bhRidgeB, bhWingL,
+
+        // Задние зазубренные скосы (barbs) к посадочной втулке
+        bhRidgeT, bhColT, bhWingR,
+        bhWingR, bhColT, bhColR,
+        bhRidgeT, bhWingL, bhColT,
+        bhWingL, bhColL, bhColT,
+
+        bhRidgeB, bhWingR, bhColB,
+        bhWingR, bhColR, bhColB,
+        bhRidgeB, bhColB, bhWingL,
+        bhWingL, bhColB, bhColL,
+      ];
+      const bhBladeGeo = new THREE.BufferGeometry();
+      bhBladeGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(bhTris.flat()), 3));
+      bhBladeGeo.computeVertexNormals();
+      headG.add(new THREE.Mesh(bhBladeGeo, steelEdge));
+
+      // Светящийся бирюзовый рунный хребет наконечника
+      const bhCTip    = [0, 0, 0.635];
+      const bhCRidgeT = [0, 0.009, 0.545];
+      const bhCRidgeB = [0, -0.009, 0.545];
+      const bhCWingR  = [0.018, 0, 0.49];
+      const bhCWingL  = [-0.018, 0, 0.49];
+      const bhCColT   = [0, 0.007, 0.45];
+      const bhCColB   = [0, -0.007, 0.45];
+
+      const bhCoreTris = [
+        bhCTip, bhCRidgeT, bhCWingR,
+        bhCTip, bhCWingL, bhCRidgeT,
+        bhCTip, bhCWingR, bhCRidgeB,
+        bhCTip, bhCRidgeB, bhCWingL,
+
+        bhCRidgeT, bhCColT, bhCWingR,
+        bhCRidgeT, bhCWingL, bhCColT,
+        bhCRidgeB, bhCWingR, bhCColB,
+        bhCRidgeB, bhCColB, bhCWingL,
+      ];
+      const bhCoreGeo = new THREE.BufferGeometry();
+      bhCoreGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(bhCoreTris.flat()), 3));
+      bhCoreGeo.computeVertexNormals();
+      headG.add(new THREE.Mesh(bhCoreGeo, cyanGlowMat));
+      arrowGroup.add(headG);
+
       // 3-Blade faceted crystalline fletchings
       arrowGroup.add(box(0.006, 0.042, 0.10, 0, 0.024, -0.06, cyanGlowMat));
       const fR = box(0.038, 0.020, 0.10, 0.020, -0.012, -0.06, cyanGlowMat);

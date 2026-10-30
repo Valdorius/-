@@ -1,12 +1,12 @@
 import * as THREE from "three";
-import { loadVOX } from "./vox_loader.js?v=20261030_14";
+import { loadVOX } from "./vox_loader.js?v=20261030_15";
 
 /**
  * VOX registry with articulated limb rig support.
  * Important: never "blank" a character until VOX is actually loaded.
  * This prevents invisible enemies when a VOX fails to parse/load.
  */
-const V = "20261030_14";
+const V = "20261030_15";
 
 export const VOX_MODELS = {
   // 80x80x80 armored knight model based on bot skeleton → voxelSize 0.022 = ~1.75m tall
