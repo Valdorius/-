@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_04";
+import { createFpsArms } from "./fps_arms.js?v=20261030_05";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -1177,6 +1177,12 @@ let cd = 0,
       else if (w === "bow") fpsArms.setRuneColor(0x00f0ff);
       else if (w === "staff") fpsArms.setRuneColor(0xff4455);
     }
+
+    // Synchronize 3rd-person avatar representation
+    if (player && player.avatar) {
+      player.avatar.setWeapon?.(w);
+      player.avatar.setCombatAction?.(null);
+    }
   }
 
   function tick(dt) {
@@ -1207,17 +1213,20 @@ let cd = 0,
         hammerSlamT -= dt;
         const p = 1 - hammerSlamT / hammerSlamMax;
         animateHammerSlam(p);
+        player?.avatar?.setCombatAction?.({ weapon: "hammer", action: "slam", progress: p });
         if (!hammerSlamHitTriggered && p >= 0.54) {
           hammerSlamHitTriggered = true;
           executeHammerGroundSlam();
         }
         if (hammerSlamT <= 0) {
           hammerSlamT = 0;
+          player?.avatar?.setCombatAction?.(null);
         }
       } else if (hammerSwingT > 0) {
         hammerSwingT -= dt;
         const p = 1 - hammerSwingT / hammerSwingMax;
         animateHammerSwing(p);
+        player?.avatar?.setCombatAction?.({ weapon: "hammer", action: "swing", progress: p });
         if (!hammerSwingImpulseFired && p >= 0.24) {
           hammerSwingImpulseFired = true;
           camImpulseZ = -0.035;
@@ -1225,8 +1234,10 @@ let cd = 0,
         }
         if (hammerSwingT <= 0) {
           hammerSwingT = 0;
+          player?.avatar?.setCombatAction?.(null);
         }
       } else {
+        player?.avatar?.setCombatAction?.(null);
         hand.rotation.copy(baseHandRot);
         hand.position.copy(baseHandPos);
 
@@ -1244,6 +1255,7 @@ let cd = 0,
         const p = 1 - swingT / swingMax;
         const s = spearCombos[comboStep] || spearCombos[0];
         s.anim(p);
+        player?.avatar?.setCombatAction?.({ weapon: "spear", action: "swing", progress: p, comboStep });
 
         // Trigger camera impulse on the active slice frame
         if (!comboImpulseFired && p >= s.active[0]) {
@@ -1255,12 +1267,14 @@ let cd = 0,
 
         if (swingT <= 0) {
           swingT = 0;
+          player?.avatar?.setCombatAction?.(null);
           if (spearHitSet.size === 0) spearStreak = 0;
           if (comboQueued) {
             startSpearSwing(comboNextStep);
           }
         }
       } else {
+        player?.avatar?.setCombatAction?.(null);
         hand.rotation.copy(baseHandRot);
         hand.position.copy(baseHandPos);
 

@@ -153,11 +153,117 @@ export function createVoxelAvatar({
   head.add(part({ sx:0.06, sy:0.18, sz:0.06, x:0.22, y:0.22, z:-0.10, mat:matAccent, name:"Antenna" }));
 
   // --- Overall scaling ---
-  // Our constructed rig is roughly height ~2.0 in these units; scale down a bit.
+  // Target height ~1.72m
   g.scale.set(0.92, 0.92, 0.92);
   g.position.set(0, 0, 0);
 
-  // Tiny idle animation params (optional): stored for external tick
+  // --- Third-person Weapon Meshes for Dynamic Shadows & Multiplayer ---
+  const weaponAnchor = new THREE.Group();
+  weaponAnchor.name = "ThirdPersonWeaponAnchor";
+  weaponAnchor.position.set(0, -0.52, 0.08);
+  weaponAnchor.rotation.set(-0.35, 0, 0);
+  weaponAnchor.layers.set(2);
+  armR.add(weaponAnchor);
+
+  const matWeaponWood = new THREE.MeshStandardMaterial({ color: 0x3d281a, roughness: 0.85 });
+  const matWeaponSteel = new THREE.MeshStandardMaterial({ color: 0xc8d6ee, roughness: 0.35, metalness: 0.70 });
+  const matWeaponDark = new THREE.MeshStandardMaterial({ color: 0x222c3c, roughness: 0.55, metalness: 0.50 });
+  const matAmberRune = new THREE.MeshStandardMaterial({
+    color: 0xffaa22,
+    emissive: 0xff8800,
+    emissiveIntensity: 2.2,
+    roughness: 0.20
+  });
+  const matCyanRune = new THREE.MeshStandardMaterial({
+    color: 0x00f5ff,
+    emissive: 0x00d0ff,
+    emissiveIntensity: 2.2,
+    roughness: 0.20
+  });
+
+  function createThirdPersonWeapon(wType) {
+    const wg = new THREE.Group();
+    wg.name = `TP_Weapon_${wType}`;
+    wg.layers.set(2);
+
+    function wpart({ sx, sy, sz, x=0, y=0, z=0, mat=matWeaponSteel, name="" }) {
+      const m = new THREE.Mesh(box, mat);
+      m.scale.set(sx, sy, sz);
+      m.position.set(x, y, z);
+      if (name) m.name = name;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.layers.set(2);
+      wg.add(m);
+      return m;
+    }
+
+    if (wType === "hammer") {
+      // 1. Heavy ash shaft
+      wpart({ sx: 0.065, sy: 1.35, sz: 0.065, x: 0, y: 0.32, z: 0, mat: matWeaponWood, name: "Shaft" });
+      // Pommel
+      wpart({ sx: 0.09, sy: 0.12, sz: 0.09, x: 0, y: -0.32, z: 0, mat: matWeaponDark, name: "Pommel" });
+      // Reinforcing steel langets
+      wpart({ sx: 0.08, sy: 0.45, sz: 0.02, x: 0, y: 0.65, z: 0.035, mat: matWeaponDark });
+      wpart({ sx: 0.08, sy: 0.45, sz: 0.02, x: 0, y: 0.65, z: -0.035, mat: matWeaponDark });
+      // Massive steel hammer head
+      wpart({ sx: 0.26, sy: 0.26, sz: 0.36, x: 0, y: 0.88, z: 0, mat: matWeaponDark, name: "HeadCore" });
+      // Crushing face front
+      wpart({ sx: 0.24, sy: 0.24, sz: 0.10, x: 0, y: 0.88, z: 0.22, mat: matWeaponSteel, name: "Face" });
+      // Rear armor-piercing spike
+      wpart({ sx: 0.12, sy: 0.12, sz: 0.18, x: 0, y: 0.88, z: -0.26, mat: matWeaponSteel, name: "Spike" });
+      // Top siege spike
+      wpart({ sx: 0.08, sy: 0.18, sz: 0.08, x: 0, y: 1.08, z: 0, mat: matWeaponSteel, name: "TopSpike" });
+      // Glowing Amber Rune Core
+      wpart({ sx: 0.12, sy: 0.12, sz: 0.12, x: 0, y: 0.88, z: 0, mat: matAmberRune, name: "RuneCore" });
+      wpart({ sx: 0.27, sy: 0.06, sz: 0.16, x: 0, y: 0.88, z: 0, mat: matAmberRune, name: "RuneBandL" });
+    } else if (wType === "spear") {
+      // 1. Long shaft
+      wpart({ sx: 0.05, sy: 1.85, sz: 0.05, x: 0, y: 0.45, z: 0, mat: matWeaponWood, name: "Shaft" });
+      // Rings
+      wpart({ sx: 0.07, sy: 0.04, sz: 0.07, x: 0, y: 0.85, z: 0, mat: matWeaponDark });
+      wpart({ sx: 0.07, sy: 0.04, sz: 0.07, x: 0, y: 1.08, z: 0, mat: matWeaponDark });
+      // Broad curved glefa blade
+      wpart({ sx: 0.04, sy: 0.65, sz: 0.22, x: 0, y: 1.40, z: 0.06, mat: matWeaponSteel, name: "Blade" });
+      // Hook
+      wpart({ sx: 0.035, sy: 0.12, sz: 0.10, x: 0, y: 1.25, z: -0.09, mat: matWeaponDark, name: "Hook" });
+      // Glowing cyan rune channel
+      wpart({ sx: 0.048, sy: 0.45, sz: 0.04, x: 0, y: 1.38, z: 0.04, mat: matCyanRune, name: "RuneChannel" });
+    } else if (wType === "bow") {
+      // Curved runic bow stave
+      wpart({ sx: 0.05, sy: 1.30, sz: 0.12, x: 0, y: 0.20, z: 0.05, mat: matWeaponWood, name: "Stave" });
+      wpart({ sx: 0.06, sy: 0.25, sz: 0.06, x: 0, y: 0.20, z: 0.05, mat: matWeaponDark, name: "Grip" });
+      wpart({ sx: 0.055, sy: 0.50, sz: 0.03, x: 0, y: 0.45, z: 0.08, mat: matCyanRune, name: "TopRune" });
+      wpart({ sx: 0.055, sy: 0.50, sz: 0.03, x: 0, y: -0.05, z: 0.08, mat: matCyanRune, name: "BotRune" });
+    } else if (wType === "staff") {
+      // Magic crystal staff
+      wpart({ sx: 0.05, sy: 1.55, sz: 0.05, x: 0, y: 0.35, z: 0, mat: matWeaponWood, name: "Shaft" });
+      wpart({ sx: 0.12, sy: 0.16, sz: 0.12, x: 0, y: 1.15, z: 0, mat: matWeaponDark, name: "Crown" });
+      wpart({ sx: 0.14, sy: 0.22, sz: 0.14, x: 0, y: 1.28, z: 0, mat: matAmberRune, name: "Crystal" });
+    }
+    return wg;
+  }
+
+  let currentWeaponId = "spear";
+  let activeWeaponMesh = createThirdPersonWeapon("spear");
+  weaponAnchor.add(activeWeaponMesh);
+
+  function setWeapon(wType) {
+    if (!wType || wType === currentWeaponId) return;
+    currentWeaponId = wType;
+    if (activeWeaponMesh) weaponAnchor.remove(activeWeaponMesh);
+    activeWeaponMesh = createThirdPersonWeapon(wType);
+    weaponAnchor.add(activeWeaponMesh);
+  }
+
+  // Combat animation state
+  let combatAction = null;
+
+  function setCombatAction(actionObj) {
+    combatAction = actionObj;
+  }
+
+  // Animation driver state
   const state = {
     t: 0,
     moving: 0,
@@ -170,26 +276,194 @@ export function createVoxelAvatar({
   function tick(dt){
     state.t += dt;
 
-    // Subtle breathing + movement sway for networked readability (doesn't touch FPS camera)
-    const breathe = Math.sin(state.t*2.0) * 0.008;
-    torso.position.y = 0.32 + breathe;
+    // Reparent weaponAnchor to voxMesh.armR once loaded
+    const targetArmR = (g.voxMesh && g.voxMesh.armR) ? g.voxMesh.armR : armR;
+    if (weaponAnchor.parent !== targetArmR) {
+      targetArmR.add(weaponAnchor);
+    }
 
-    const sway = state.moving * Math.sin(state.t*9.0) * 0.55;
-    legL.rotation.x =  sway;
-    legR.rotation.x = -sway;
-    armL.rotation.x = -sway*0.6;
-    armR.rotation.x =  sway*0.6;
+    // Default locomotion & breathing
+    const breathe = Math.sin(state.t * 2.0) * 0.008;
+    const sway = state.moving * Math.sin(state.t * 9.0) * 0.55;
+    const pitchClamped = Math.max(-0.6, Math.min(0.6, state.aimPitch));
 
-    // Head slightly follows aim pitch (clamped)
-    const p = Math.max(-0.6, Math.min(0.6, state.aimPitch));
-    head.rotation.x = p * 0.35;
+    // Target transforms for limbs
+    let torsoPosY = 0.32 + breathe;
+    let torsoRotX = 0, torsoRotY = 0, torsoRotZ = 0;
+    let headRotX = pitchClamped * 0.35, headRotY = 0, headRotZ = 0;
+    let armRRotX = 0.55, armRRotY = -0.20, armRRotZ = 0.15;
+    let armLRotX = 0.75, armLRotY = 0.30, armLRotZ = -0.10;
+    let legLRotX = sway, legLRotZ = 0;
+    let legRRotX = -sway, legRRotZ = 0;
 
-    if (g.voxMesh?.legL) {
-      g.voxMesh.legL.rotation.x = sway;
-      g.voxMesh.legR.rotation.x = -sway;
-      if (g.voxMesh.armL) g.voxMesh.armL.rotation.x = -sway * 0.85;
-      if (g.voxMesh.armR) g.voxMesh.armR.rotation.x = sway * 0.85;
-      if (g.voxMesh.head) g.voxMesh.head.rotation.x = p * 0.35;
+    if (combatAction && combatAction.weapon === "hammer") {
+      const p = Math.max(0, Math.min(1, combatAction.progress || 0));
+
+      if (combatAction.action === "slam") {
+        // --- HAMMER ПКМ: Ground Slam (Землетрясение) ---
+        if (p < 0.48) {
+          // 1. Overhead hoist: arms reach high above head, spine arches backward
+          const t = p / 0.48;
+          const k = t * t * (3 - 2 * t);
+          torsoRotX = -0.32 * k;
+          headRotX = -0.35 * k;
+          armRRotX = 2.45 * k;
+          armRRotY = -0.15 * k;
+          armRRotZ = 0.22 * k;
+          armLRotX = 2.45 * k;
+          armLRotY = 0.15 * k;
+          armLRotZ = -0.22 * k;
+          legLRotZ = 0.22 * k;
+          legRRotZ = -0.22 * k;
+        } else if (p < 0.65) {
+          // 2. Powerful vertical smash down to floor
+          const t = (p - 0.48) / 0.17;
+          const k = t * t;
+          torsoRotX = -0.32 + 0.95 * k;
+          torsoPosY = 0.32 - 0.24 * k;
+          headRotX = -0.35 + 0.75 * k;
+          armRRotX = 2.45 - 2.90 * k;
+          armRRotY = -0.15 * (1 - k);
+          armRRotZ = 0.22 - 0.15 * k;
+          armLRotX = 2.45 - 2.90 * k;
+          armLRotY = 0.15 * (1 - k);
+          armLRotZ = -0.22 + 0.15 * k;
+          legLRotX = -0.35 * k;
+          legLRotZ = 0.22 + 0.15 * k;
+          legRRotX = -0.35 * k;
+          legRRotZ = -0.22 - 0.15 * k;
+        } else {
+          // 3. Impact vibration & recovery
+          const t = (p - 0.65) / 0.35;
+          const k = 1 - t * (2 - t);
+          const bounce = Math.sin(t * Math.PI) * 0.05;
+          torsoRotX = 0.63 * k;
+          torsoPosY = 0.32 - 0.24 * k + bounce;
+          headRotX = 0.40 * k;
+          armRRotX = -0.45 * k + 0.55 * (1 - k);
+          armLRotX = -0.45 * k + 0.75 * (1 - k);
+          legLRotX = -0.35 * k;
+          legRRotX = -0.35 * k;
+        }
+      } else {
+        // --- HAMMER ЛКМ: Horizontal Crushing Sweep ---
+        if (p < 0.22) {
+          // 1. Windup behind right shoulder
+          const t = p / 0.22;
+          const k = t * t * (3 - 2 * t);
+          torsoRotY = -0.65 * k;
+          torsoRotX = -0.12 * k;
+          headRotY = 0.50 * k;
+          armRRotX = 0.90 * k;
+          armRRotY = -0.45 * k;
+          armRRotZ = 0.45 * k;
+          armLRotX = 0.85 * k;
+          armLRotY = 0.55 * k;
+          armLRotZ = -0.25 * k;
+          legRRotX = -0.25 * k;
+          legLRotX = 0.25 * k;
+        } else if (p < 0.60) {
+          // 2. Violent cleave sweep through center to left
+          const t = (p - 0.22) / 0.38;
+          const k = t * t * (3 - 2 * t);
+          torsoRotY = -0.65 + 1.45 * k;
+          torsoRotX = -0.12 + 0.38 * k;
+          headRotY = 0.50 - 0.75 * k;
+          armRRotX = 0.90 + 0.35 * k;
+          armRRotY = -0.45 + 1.80 * k;
+          armRRotZ = 0.45 - 0.95 * k;
+          armLRotX = 0.85 - 0.20 * k;
+          armLRotY = 0.55 + 0.65 * k;
+          armLRotZ = -0.25 - 0.35 * k;
+          legLRotX = 0.25 + 0.25 * k;
+          legRRotX = -0.25 - 0.20 * k;
+        } else {
+          // 3. Follow-through & deceleration
+          const t = (p - 0.60) / 0.40;
+          const k = 1 - t * (2 - t);
+          torsoRotY = 0.80 * k;
+          torsoRotX = 0.26 * k;
+          armRRotX = 1.25 * k + 0.55 * (1 - k);
+          armRRotY = 1.35 * k - 0.20 * (1 - k);
+          armLRotX = 0.65 * k + 0.75 * (1 - k);
+          armLRotY = 1.20 * k + 0.30 * (1 - k);
+        }
+      }
+    } else if (combatAction && combatAction.weapon === "spear") {
+      // --- SPEAR COMBOS ---
+      const p = Math.max(0, Math.min(1, combatAction.progress || 0));
+      const step = combatAction.comboStep || 0;
+
+      if (step === 2) {
+        // Overhead heavy finisher
+        if (p < 0.35) {
+          const t = p / 0.35;
+          const k = t * t;
+          torsoRotX = -0.25 * k;
+          armRRotX = 0.55 + 1.65 * k;
+          armLRotX = 0.75 + 1.45 * k;
+        } else if (p < 0.65) {
+          const t = (p - 0.35) / 0.30;
+          const k = t * t;
+          torsoRotX = -0.25 + 0.65 * k;
+          armRRotX = 2.20 - 2.50 * k;
+          armLRotX = 2.20 - 2.50 * k;
+          legLRotX = 0.40 * k;
+        } else {
+          const t = (p - 0.65) / 0.35;
+          const k = 1 - t * (2 - t);
+          torsoRotX = 0.40 * k;
+          armRRotX = -0.30 * k + 0.55 * (1 - k);
+          armLRotX = -0.30 * k + 0.75 * (1 - k);
+        }
+      } else {
+        // Horizontal Cleaves (step 0 & 1)
+        if (p < 0.25) {
+          const t = p / 0.25;
+          torsoRotY = (step === 0 ? -0.45 : 0.45) * t;
+          armRRotX = 0.55 + 0.25 * t;
+          armLRotX = 0.75 - 0.15 * t;
+        } else if (p < 0.65) {
+          const t = (p - 0.25) / 0.40;
+          const k = t * t * (3 - 2 * t);
+          torsoRotY = (step === 0) ? (-0.45 + 0.95 * k) : (0.45 - 0.95 * k);
+          armRRotX = 0.80 - 0.30 * k;
+          armRRotY = (step === 0 ? 0.85 : -0.85) * k;
+          legLRotX = 0.35 * k;
+        } else {
+          const t = (p - 0.65) / 0.35;
+          const k = 1 - t * (2 - t);
+          torsoRotY = (step === 0 ? 0.50 : -0.50) * k;
+        }
+      }
+    } else {
+      // Locomotion sway blended into arm swing when moving
+      if (state.moving > 0.05) {
+        armLRotX += -sway * 0.45;
+        armRRotX += sway * 0.45;
+      }
+    }
+
+    // Apply transforms to procedural rig
+    torso.position.y = torsoPosY;
+    torso.rotation.set(torsoRotX, torsoRotY, torsoRotZ);
+    head.rotation.set(headRotX, headRotY, headRotZ);
+    armR.rotation.set(armRRotX, armRRotY, armRRotZ);
+    armL.rotation.set(armLRotX, armLRotY, armLRotZ);
+    legL.rotation.set(legLRotX, 0, legLRotZ);
+    legR.rotation.set(legRRotX, 0, legRRotZ);
+
+    // Apply synchronized transforms to loaded VOX skeleton (player_armored.vox)
+    if (g.voxMesh) {
+      if (g.voxMesh.torso) {
+        g.voxMesh.torso.position.y = (torsoPosY - 0.32);
+        g.voxMesh.torso.rotation.set(torsoRotX, torsoRotY, torsoRotZ);
+      }
+      if (g.voxMesh.head) g.voxMesh.head.rotation.set(headRotX, headRotY, headRotZ);
+      if (g.voxMesh.armR) g.voxMesh.armR.rotation.set(armRRotX, armRRotY, armRRotZ);
+      if (g.voxMesh.armL) g.voxMesh.armL.rotation.set(armLRotX, armLRotY, armLRotZ);
+      if (g.voxMesh.legL) g.voxMesh.legL.rotation.set(legLRotX, 0, legLRotZ);
+      if (g.voxMesh.legR) g.voxMesh.legR.rotation.set(legRRotX, 0, legRRotZ);
     }
   }
 
@@ -198,6 +472,8 @@ export function createVoxelAvatar({
     rig,
     setMoving01,
     setAimPitch,
+    setWeapon,
+    setCombatAction,
     tick,
   };
 }

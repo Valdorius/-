@@ -1,16 +1,16 @@
 import * as THREE from "three";
-import { loadVOX } from "./vox_loader.js?v=20261030_04";
+import { loadVOX } from "./vox_loader.js?v=20261030_05";
 
 /**
  * VOX registry with articulated limb rig support.
  * Important: never "blank" a character until VOX is actually loaded.
  * This prevents invisible enemies when a VOX fails to parse/load.
  */
-const V = "20261030_04";
+const V = "20261030_05";
 
 export const VOX_MODELS = {
-  // 32x32x32 models → voxelSize 0.056 = ~1.8m tall
-  player:   { url: `./assets/models/player.vox?v=${V}`,   voxelSize: 0.056, scale: 1.0, pivot: "bottom_center" },
+  // 80x80x80 armored knight model based on bot skeleton → voxelSize 0.022 = ~1.75m tall
+  player:   { url: `./assets/models/player.vox?v=${V}`,   voxelSize: 0.022, scale: 1.0, pivot: "bottom_center" },
   ranged:   { url: `./assets/models/ranged.vox?v=${V}`,   voxelSize: 0.056, scale: 1.0, pivot: "bottom_center" },
   sprinter: { url: `./assets/models/sprinter.vox?v=${V}`, voxelSize: 0.050, scale: 1.0, pivot: "bottom_center" },
   shielder: { url: `./assets/models/shielder.vox?v=${V}`, voxelSize: 0.056, scale: 1.0, pivot: "bottom_center" },
@@ -58,8 +58,14 @@ export function attachVOXSkin(group, key, opts={}) {
     }
 
     mesh.name = `${key}_VOX`;
-    // Inherit layers and visibility of target group
-    mesh.layers.mask = group.layers.mask;
+    // Inherit layers, shadows and visibility across all child nodes
+    mesh.traverse((ch) => {
+      ch.layers.mask = group.layers.mask;
+      if (ch.isMesh) {
+        ch.castShadow = true;
+        ch.receiveShadow = true;
+      }
+    });
     if (group.visible === false) mesh.visible = false;
 
     if (replace) {

@@ -45,6 +45,7 @@ export function createWorld(engine){
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = 0;
+  floor.receiveShadow = true;
   group.add(floor);
 
   // ===== Stone & Rune Materials for Pillars and Walls =====

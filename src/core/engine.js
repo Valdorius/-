@@ -8,6 +8,8 @@ export function createEngine(canvas){
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   scene.background = (function(){
@@ -60,8 +62,21 @@ export function createEngine(canvas){
   const amb = new THREE.AmbientLight(0xffffff, 0.35);
   scene.add(amb);
 
-  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
-  dir.position.set(6, 10, 4);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.25);
+  dir.position.set(16, 28, 12);
+  dir.castShadow = true;
+  dir.shadow.mapSize.width = 2048;
+  dir.shadow.mapSize.height = 2048;
+  dir.shadow.camera.near = 0.5;
+  dir.shadow.camera.far = 90;
+  const shadowD = 45;
+  dir.shadow.camera.left = -shadowD;
+  dir.shadow.camera.right = shadowD;
+  dir.shadow.camera.top = shadowD;
+  dir.shadow.camera.bottom = -shadowD;
+  dir.shadow.bias = -0.0006;
+  // Enable shadow casting for all layers including layer 2 (avatar)
+  dir.shadow.camera.layers.enableAll();
   scene.add(dir);
 
   const rim = new THREE.DirectionalLight(0x88aaff, 0.6);
