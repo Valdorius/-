@@ -180,9 +180,8 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
   swordPlinth.position.set(SWORD_REST_X, 0, SWORD_REST_Z);
   swordPlinth.add(box(7.5, 4.0, 7.5, 0, 2.0, 0, throneMat));
   swordPlinth.add(box(6.0, 1.5, 6.0, 0, 4.5, 0, throneTrimMat));
-  // Magma cracks on sword plinth
-  const plinthCrack = box(0.8, 0.08, 4.8, 0, 5.28, 0, magmaMat);
-  plinthCrack.rotation.y = 0.45;
+  // Magma crack on sword plinth (aligned with horizontal crossguard along X)
+  const plinthCrack = box(4.8, 0.08, 0.8, 0, 5.28, 0, magmaMat);
   swordPlinth.add(plinthCrack);
   throneGroup.add(swordPlinth);
 
@@ -260,32 +259,43 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
 
   // --- ARTICULATED LEFT ARM ---
   const lArmRoot = new THREE.Group();
-  lArmRoot.position.set(-9.5, 28.0, -1.5);
+  lArmRoot.position.set(-8.5, 28.0, -1.5);
   skeletonGroup.add(lArmRoot);
-  const lUpperArm = box(3.2, 9.5, 3.2, 0, -4.5, 0, boneMat);
-  const lElbow = box(3.6, 3.6, 3.6, 0, -8.5, 2.5, boneJointMat);
-  const lForearm = box(2.8, 2.8, 9.0, 0, -8.5, 6.5, boneMat);
-  const lHand = box(3.4, 2.2, 3.6, 0, -9.5, 11.5, boneMat);
-  lArmRoot.add(lUpperArm, lElbow, lForearm, lHand);
+  const lUpperArm = box(3.4, 9.5, 3.4, 0, -4.75, 0, boneMat);
+  lArmRoot.add(lUpperArm);
+
+  const lForearmGroup = new THREE.Group();
+  lForearmGroup.position.set(0, -9.5, 0);
+  lArmRoot.add(lForearmGroup);
+  const lElbow = box(3.8, 3.8, 3.8, 0, 0, 0, boneJointMat);
+  const lRadius = box(3.0, 8.5, 3.0, 0, 4.25, 0, boneMat);
+  const lHand = box(3.6, 3.4, 3.6, 0, 9.0, 0, boneMat);
+  lForearmGroup.add(lElbow, lRadius, lHand);
+
+  // Left Arm Default Rotations (resting on left throne armrest)
+  const L_ARM_SEAT_ROT = new THREE.Euler(0.25, 0, 0.20);
+  const L_FOREARM_SEAT_ROT = new THREE.Euler(-1.55, 0, 0);
+  lArmRoot.rotation.copy(L_ARM_SEAT_ROT);
+  lForearmGroup.rotation.copy(L_FOREARM_SEAT_ROT);
 
   // --- ARTICULATED RIGHT ARM (THE THINKER / ATTACK ARM) ---
   const rArmRoot = new THREE.Group();
   rArmRoot.position.set(8.5, 28.0, -1.5);
   skeletonGroup.add(rArmRoot);
 
-  const rHumerus = box(3.4, 10.5, 3.4, 0, -5.0, 0, boneMat);
+  const rHumerus = box(3.4, 9.5, 3.4, 0, -4.75, 0, boneMat);
   rArmRoot.add(rHumerus);
 
   // Right Elbow & Forearm
   const rForearmGroup = new THREE.Group();
   rForearmGroup.position.set(0, -9.5, 0);
   rArmRoot.add(rForearmGroup);
-  const rElbow = box(4.0, 4.0, 4.0, 0, 0, 0, boneJointMat);
-  const rRadius = box(3.0, 9.5, 3.0, 0, 4.5, 0, boneMat);
-  const rFist = box(3.8, 3.6, 4.0, 0, 9.0, 0, boneMat);
+  const rElbow = box(3.8, 3.8, 3.8, 0, 0, 0, boneJointMat);
+  const rRadius = box(3.0, 8.5, 3.0, 0, 4.25, 0, boneMat);
+  const rFist = box(3.6, 3.4, 3.6, 0, 9.0, 0, boneMat);
   rForearmGroup.add(rElbow, rRadius, rFist);
 
-  // Thinker Seated Default Rotations
+  // Thinker Seated Default Rotations (chin resting on right fist)
   const R_ARM_SEAT_ROT = new THREE.Euler(0.55, 0, -0.15);
   const R_FOREARM_SEAT_ROT = new THREE.Euler(-0.32, 0, 0.65);
   rArmRoot.rotation.copy(R_ARM_SEAT_ROT);
@@ -340,18 +350,18 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
   swordGroup.rotation.set(0.08, 0, -0.06);
   titanRoot.add(swordGroup);
 
-  // Giant 22-meter double-edged blade (extends along -Y from crossguard)
-  const blade = box(1.5, 22.0, 3.4, 0, -14.2, 0, swordSteelMat);
-  const bladeCore = box(1.8, 20.0, 1.6, 0, -14.2, 0, flameCoreMat);
-  const bladeAura = box(2.4, 21.0, 3.8, 0, -14.2, 0, flameMidMat);
-  const bladeEdgeOuter = box(3.0, 22.5, 4.4, 0, -14.2, 0, flameOuterMat);
+  // Giant 22-meter double-edged blade (wide along X = 3.6m, thin along Z = 1.4m)
+  const blade = box(3.6, 22.0, 1.4, 0, -14.2, 0, swordSteelMat);
+  const bladeCore = box(2.0, 20.0, 1.6, 0, -14.2, 0, flameCoreMat);
+  const bladeAura = box(4.0, 21.0, 2.0, 0, -14.2, 0, flameMidMat);
+  const bladeEdgeOuter = box(4.6, 22.5, 2.4, 0, -14.2, 0, flameOuterMat);
 
-  // Massive horned Crossguard (9.5m wide) at y = -3.2
-  const crossguard = box(2.8, 2.4, 9.5, 0, -3.2, 0, swordSteelMat);
-  const hornL = box(2.4, 4.5, 1.8, 0, -1.2, -4.8, throneTrimMat);
-  hornL.rotation.x = -0.35;
-  const hornR = box(2.4, 4.5, 1.8, 0, -1.2, 4.8, throneTrimMat);
-  hornR.rotation.x = 0.35;
+  // Massive horned Crossguard (9.5m wide horizontally along X!) at y = -3.2
+  const crossguard = box(9.5, 2.4, 2.8, 0, -3.2, 0, swordSteelMat);
+  const hornL = box(1.8, 4.5, 2.4, -4.8, -1.2, 0, throneTrimMat);
+  hornL.rotation.z = 0.35;
+  const hornR = box(1.8, 4.5, 2.4, 4.8, -1.2, 0, throneTrimMat);
+  hornR.rotation.z = -0.35;
 
   // Grip (5.5m tall, centered at y = 0, where hands grasp!)
   const grip = box(1.4, 5.5, 1.4, 0, 0, 0, new THREE.MeshStandardMaterial({ color: 0x140e18, roughness: 0.9 }));
@@ -531,11 +541,18 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
         gazeLight.intensity = 2.4 + 4.5 * p;
         gazeLight.color.setHex(p > 0.5 ? 0xff2200 : 0xff7700);
 
-        // Right arm fist releases from chin
+        // Arms release from seated pose
         const armP = easeInOutCubic(p);
         rArmRoot.rotation.x = THREE.MathUtils.lerp(R_ARM_SEAT_ROT.x, 0.15, armP);
-        rArmRoot.rotation.z = THREE.MathUtils.lerp(R_ARM_SEAT_ROT.z, -0.45, armP);
-        rForearmGroup.rotation.z = THREE.MathUtils.lerp(R_FOREARM_SEAT_ROT.z, 0.10, armP);
+        rArmRoot.rotation.y = THREE.MathUtils.lerp(R_ARM_SEAT_ROT.y, 0.0, armP);
+        rArmRoot.rotation.z = THREE.MathUtils.lerp(R_ARM_SEAT_ROT.z, -0.35, armP);
+        rForearmGroup.rotation.x = THREE.MathUtils.lerp(R_FOREARM_SEAT_ROT.x, -1.2, armP);
+        rForearmGroup.rotation.y = THREE.MathUtils.lerp(R_FOREARM_SEAT_ROT.y, 0.0, armP);
+        rForearmGroup.rotation.z = THREE.MathUtils.lerp(R_FOREARM_SEAT_ROT.z, 0.0, armP);
+
+        lArmRoot.rotation.x = THREE.MathUtils.lerp(L_ARM_SEAT_ROT.x, 0.15, armP);
+        lArmRoot.rotation.z = THREE.MathUtils.lerp(L_ARM_SEAT_ROT.z, 0.35, armP);
+        lForearmGroup.rotation.x = THREE.MathUtils.lerp(L_FOREARM_SEAT_ROT.x, -1.2, armP);
 
         if (stateTimer >= 1.5) {
           attackState = "STAND_AND_DRAW";
@@ -558,29 +575,51 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
         lTibia.position.z = THREE.MathUtils.lerp(9.2, 5.0, k);
         rTibia.position.z = THREE.MathUtils.lerp(9.2, 5.0, k);
 
-        // Arms reach out towards the greatsword at X = -25.5
-        rArmRoot.rotation.set(
-          THREE.MathUtils.lerp(0.15, -0.65, k),
-          THREE.MathUtils.lerp(0, 0.45, k),
-          THREE.MathUtils.lerp(-0.45, -0.85, k)
-        );
-        lArmRoot.rotation.set(
-          THREE.MathUtils.lerp(0, -0.55, k),
-          THREE.MathUtils.lerp(0, -0.30, k),
-          THREE.MathUtils.lerp(0, 0.65, k)
-        );
+        if (k < 0.4) {
+          const reachK = k / 0.4;
+          rArmRoot.rotation.set(
+            THREE.MathUtils.lerp(0.15, -0.95, reachK),
+            THREE.MathUtils.lerp(0, 0.25, reachK),
+            THREE.MathUtils.lerp(-0.35, -0.75, reachK)
+          );
+          rForearmGroup.rotation.set(THREE.MathUtils.lerp(-1.2, -0.65, reachK), 0, 0);
+          lArmRoot.rotation.set(
+            THREE.MathUtils.lerp(0.15, -0.85, reachK),
+            THREE.MathUtils.lerp(0, -0.25, reachK),
+            THREE.MathUtils.lerp(0.35, 0.65, reachK)
+          );
+          lForearmGroup.rotation.set(THREE.MathUtils.lerp(-1.2, -0.65, reachK), 0, 0);
 
-        // Sword lifts from the altar into two-handed grip above head!
-        swordGroup.position.set(
-          THREE.MathUtils.lerp(SWORD_REST_X, -6.0, k),
-          THREE.MathUtils.lerp(SWORD_REST_Y, 40.0, k),
-          THREE.MathUtils.lerp(SWORD_REST_Z, 12.0, k)
-        );
-        swordGroup.rotation.set(
-          THREE.MathUtils.lerp(0.08, -2.4, k),
-          THREE.MathUtils.lerp(0, 0.15, k),
-          THREE.MathUtils.lerp(-0.06, -0.25, k)
-        );
+          swordGroup.position.set(SWORD_REST_X, SWORD_REST_Y, SWORD_REST_Z);
+          swordGroup.rotation.set(0.08, 0, -0.06);
+        } else {
+          const liftK = (k - 0.4) / 0.6;
+          // Both arms raise overhead
+          rArmRoot.rotation.set(
+            THREE.MathUtils.lerp(-0.95, -2.6, liftK),
+            THREE.MathUtils.lerp(0.25, -0.15, liftK),
+            THREE.MathUtils.lerp(-0.75, -0.25, liftK)
+          );
+          rForearmGroup.rotation.set(THREE.MathUtils.lerp(-0.65, -0.25, liftK), 0, 0);
+          lArmRoot.rotation.set(
+            THREE.MathUtils.lerp(-0.85, -2.6, liftK),
+            THREE.MathUtils.lerp(-0.25, 0.15, liftK),
+            THREE.MathUtils.lerp(0.65, 0.25, liftK)
+          );
+          lForearmGroup.rotation.set(THREE.MathUtils.lerp(-0.65, -0.25, liftK), 0, 0);
+
+          // Sword lifts into two-handed overhead grip
+          swordGroup.position.set(
+            THREE.MathUtils.lerp(SWORD_REST_X, -4.0, liftK),
+            THREE.MathUtils.lerp(SWORD_REST_Y, 48.0, liftK),
+            THREE.MathUtils.lerp(SWORD_REST_Z, 10.0, liftK)
+          );
+          swordGroup.rotation.set(
+            THREE.MathUtils.lerp(0.08, -3.05, liftK),
+            0,
+            THREE.MathUtils.lerp(-0.06, 0.0, liftK)
+          );
+        }
 
         if (stateTimer >= 2.5) {
           attackState = "AIM_TELEGRAPH";
@@ -595,9 +634,15 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
         const p = Math.min(1.0, stateTimer / 2.2);
         const pulse = 0.5 + 0.5 * Math.sin(stateTimer * 10.0);
 
-        // Sword raised to zenith (blade pointing up & back over shoulder ready to strike)
-        swordGroup.position.set(-6.0, 42.0 + Math.sin(stateTimer * 4.0) * 1.5, 12.0);
-        swordGroup.rotation.set(-2.5, 0.10, -0.25);
+        // Arms hold sword high overhead
+        rArmRoot.rotation.set(-2.6, -0.15, -0.25);
+        rForearmGroup.rotation.set(-0.25, 0, 0);
+        lArmRoot.rotation.set(-2.6, 0.15, 0.25);
+        lForearmGroup.rotation.set(-0.25, 0, 0);
+
+        // Sword raised to zenith (grip held firmly above head, blade pointing straight up into the clouds!)
+        swordGroup.position.set(-4.0, 48.0 + Math.sin(stateTimer * 4.0) * 1.0, 10.0);
+        swordGroup.rotation.set(-3.05, 0, 0);
 
         // Skull glares down directly at the target spot
         skullGroup.rotation.x = 0.45;
@@ -617,24 +662,39 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
       }
 
       case "SLAM": {
-        // 0.45 seconds: Cataclysmic downward slash: blade points forward-down into the arena!
+        // 0.45 seconds: Cataclysmic downward overhead smash!
         const p = Math.min(1.0, stateTimer / 0.45);
         const k = p * p; // rapid acceleration
 
-        // Sword arcs down with titanic velocity!
-        swordGroup.position.set(
-          THREE.MathUtils.lerp(-6.0, targetPos.x * 0.35, k),
-          THREE.MathUtils.lerp(42.0, 18.0, k),
-          THREE.MathUtils.lerp(12.0, 22.0, k)
+        // Arms swing forward and down to drive the blade
+        rArmRoot.rotation.set(
+          THREE.MathUtils.lerp(-2.6, -1.05, k),
+          THREE.MathUtils.lerp(-0.15, 0.12, k),
+          THREE.MathUtils.lerp(-0.32, -0.32, k)
         );
-        swordGroup.rotation.set(
-          THREE.MathUtils.lerp(-2.5, -0.96, k),
-          0,
-          THREE.MathUtils.lerp(-0.25, 0.0, k)
+        rForearmGroup.rotation.set(THREE.MathUtils.lerp(-0.25, -1.25, k), 0, 0);
+
+        lArmRoot.rotation.set(
+          THREE.MathUtils.lerp(-2.6, -1.05, k),
+          THREE.MathUtils.lerp(0.15, -0.12, k),
+          THREE.MathUtils.lerp(0.32, 0.32, k)
         );
+        lForearmGroup.rotation.set(THREE.MathUtils.lerp(-0.25, -1.25, k), 0, 0);
 
         // Skeleton lunges forward into the swing
-        skeletonGroup.rotation.x = THREE.MathUtils.lerp(0, 0.32, k);
+        skeletonGroup.rotation.x = THREE.MathUtils.lerp(0, 0.35, k);
+
+        // Sword arcs down with titanic velocity directly into hands and arena ground!
+        swordGroup.position.set(
+          THREE.MathUtils.lerp(-4.0, -4.0 + targetPos.x * 0.20, k),
+          THREE.MathUtils.lerp(48.0, 27.5, k),
+          THREE.MathUtils.lerp(10.0, 18.5, k)
+        );
+        swordGroup.rotation.set(
+          THREE.MathUtils.lerp(-3.05, -0.78, k),
+          0,
+          0
+        );
 
         if (stateTimer >= 0.45) {
           attackState = "BURN_ACTIVE";
@@ -656,17 +716,22 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
       }
 
       case "BURN_ACTIVE": {
-        // 5.0 seconds of roaring fire carpet covering the arena area: blade stays planted forward in the arena!
+        // 5.0 seconds: Blade planted firmly forward in the arena, Titan leans forward gripping the hilt with both hands!
         const p = Math.min(1.0, stateTimer / 5.0);
         audio?.playFireSizzle?.();
 
+        rArmRoot.rotation.set(-1.05, 0.12, -0.32);
+        rForearmGroup.rotation.set(-1.25, 0, 0);
+        lArmRoot.rotation.set(-1.05, -0.12, 0.32);
+        lForearmGroup.rotation.set(-1.25, 0, 0);
+        skeletonGroup.rotation.x = 0.35;
+
         swordGroup.position.set(
-          targetPos.x * 0.35,
-          18.0 + Math.sin(totalTime * 8.0) * 0.12,
-          22.0
+          -4.0 + targetPos.x * 0.20,
+          27.5 + Math.sin(totalTime * 8.0) * 0.08,
+          18.5
         );
-        swordGroup.rotation.set(-0.96, 0, 0);
-        skeletonGroup.rotation.x = 0.32;
+        swordGroup.rotation.set(-0.78, 0, 0);
 
         // Animate ground flames
         for (const q of groundFlameQuads) {
@@ -730,7 +795,7 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
 
         // Skeleton returns to seated pose
         skeletonGroup.position.lerpVectors(STAND_POS, SEAT_POS, k);
-        skeletonGroup.rotation.x = THREE.MathUtils.lerp(0.32, 0, k);
+        skeletonGroup.rotation.x = THREE.MathUtils.lerp(0.35, 0, k);
 
         legLGroup.rotation.x = THREE.MathUtils.lerp(0.85, 0, k);
         legRGroup.rotation.x = THREE.MathUtils.lerp(0.85, 0, k);
@@ -739,27 +804,37 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
 
         // Sword returns to plinth
         swordGroup.position.set(
-          THREE.MathUtils.lerp(targetPos.x * 0.35, SWORD_REST_X, k),
-          THREE.MathUtils.lerp(18.0, SWORD_REST_Y, k),
-          THREE.MathUtils.lerp(22.0, SWORD_REST_Z, k)
+          THREE.MathUtils.lerp(-4.0 + targetPos.x * 0.20, SWORD_REST_X, k),
+          THREE.MathUtils.lerp(27.5, SWORD_REST_Y, k),
+          THREE.MathUtils.lerp(18.5, SWORD_REST_Z, k)
         );
         swordGroup.rotation.set(
-          THREE.MathUtils.lerp(-0.96, 0.08, k),
+          THREE.MathUtils.lerp(-0.78, 0.08, k),
           0,
           THREE.MathUtils.lerp(0.0, -0.06, k)
         );
 
-        // Arms return to Thinker pose
+        // Arms return to seated Thinker / armrest poses
         rArmRoot.rotation.set(
-          THREE.MathUtils.lerp(0.15, R_ARM_SEAT_ROT.x, k),
-          THREE.MathUtils.lerp(0.45, 0, k),
-          THREE.MathUtils.lerp(-0.45, R_ARM_SEAT_ROT.z, k)
+          THREE.MathUtils.lerp(-1.05, R_ARM_SEAT_ROT.x, k),
+          THREE.MathUtils.lerp(0.12, R_ARM_SEAT_ROT.y, k),
+          THREE.MathUtils.lerp(-0.32, R_ARM_SEAT_ROT.z, k)
         );
-        rForearmGroup.rotation.z = THREE.MathUtils.lerp(0.10, R_FOREARM_SEAT_ROT.z, k);
+        rForearmGroup.rotation.set(
+          THREE.MathUtils.lerp(-1.25, R_FOREARM_SEAT_ROT.x, k),
+          THREE.MathUtils.lerp(0, R_FOREARM_SEAT_ROT.y, k),
+          THREE.MathUtils.lerp(0, R_FOREARM_SEAT_ROT.z, k)
+        );
+
         lArmRoot.rotation.set(
-          THREE.MathUtils.lerp(-0.55, 0, k),
+          THREE.MathUtils.lerp(-1.05, L_ARM_SEAT_ROT.x, k),
+          THREE.MathUtils.lerp(-0.12, L_ARM_SEAT_ROT.y, k),
+          THREE.MathUtils.lerp(0.32, L_ARM_SEAT_ROT.z, k)
+        );
+        lForearmGroup.rotation.set(
+          THREE.MathUtils.lerp(-1.25, L_FOREARM_SEAT_ROT.x, k),
           0,
-          THREE.MathUtils.lerp(0.65, 0, k)
+          0
         );
 
         // Skull tilts back to resting on fist
