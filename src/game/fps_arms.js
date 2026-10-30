@@ -243,12 +243,38 @@ export function createFpsArms({ camera }) {
     }
   }
 
+  function setClassArms(c) {
+    if (c === "ranger") {
+      suitDark.color.setHex(0x1a202c);
+      suitMid.color.setHex(0x3d2719); // rich leather
+      suitLite.color.setHex(0x5c3c26); // warm leather
+      steel.color.setHex(0x3a485c); // dark steel / slate
+      darkSteel.color.setHex(0x222d3b);
+      setRuneColor(0x00f0ff);
+    } else if (c === "mage") {
+      suitDark.color.setHex(0x100a1c); // void robe
+      suitMid.color.setHex(0x22123a); // arcane purple
+      suitLite.color.setHex(0x3a1b60);
+      steel.color.setHex(0xffd700); // golden embroidery
+      darkSteel.color.setHex(0x321a48);
+      setRuneColor(0xff2387);
+    } else { // "knight"
+      suitDark.color.setHex(0x182030);
+      suitMid.color.setHex(0x223048);
+      suitLite.color.setHex(0x314668);
+      steel.color.setHex(0xd8e4fc); // bright steel plate
+      darkSteel.color.setHex(0x283242);
+      setRuneColor(0xffaa22);
+    }
+  }
+
   return {
     root,
     armL,
     armR,
     setRuneColor,
     setRuneGlow,
+    setClassArms,
     setVisible,
     update
   };

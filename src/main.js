@@ -1,16 +1,16 @@
-import { createEngine } from "./core/engine.js?v=20261030_15";
-import { createInput } from "./core/input.js?v=20261030_15";
-import { clamp } from "./core/math.js?v=20261030_15";
-import { createHUD } from "./game/hud.js?v=20261030_15";
-import { createAudio } from "./game/audio.js?v=20261030_15";
-import { createWorld } from "./game/world.js?v=20261030_15";
-import { createPlayer } from "./game/player.js?v=20261030_15";
-import { createWeapons } from "./game/weapons.js?v=20261030_15";
-import { createEnemies } from "./game/enemies.js?v=20261030_15";
-import { createProjectiles } from "./game/projectiles.js?v=20261030_15";
-import { createEffects } from "./game/effects.js?v=20261030_15";
-import { createProgression } from "./game/progression.js?v=20261030_15";
-import { preloadVOXModels } from "./models/vox_registry.js?v=20261030_15";
+import { createEngine } from "./core/engine.js?v=20261030_16";
+import { createInput } from "./core/input.js?v=20261030_16";
+import { clamp } from "./core/math.js?v=20261030_16";
+import { createHUD } from "./game/hud.js?v=20261030_16";
+import { createAudio } from "./game/audio.js?v=20261030_16";
+import { createWorld } from "./game/world.js?v=20261030_16";
+import { createPlayer } from "./game/player.js?v=20261030_16";
+import { createWeapons } from "./game/weapons.js?v=20261030_16";
+import { createEnemies } from "./game/enemies.js?v=20261030_16";
+import { createProjectiles } from "./game/projectiles.js?v=20261030_16";
+import { createEffects } from "./game/effects.js?v=20261030_16";
+import { createProgression } from "./game/progression.js?v=20261030_16";
+import { preloadVOXModels } from "./models/vox_registry.js?v=20261030_16";
 
 // Kick off parallel preload of all VOX models on boot
 preloadVOXModels();
@@ -47,23 +47,66 @@ if (enemies && typeof enemies.tick !== "function") {
 
 hud.setHintVisible(true);
 
-// Weapon pick UI
+// Hero class selection UI
 const pickEl = document.getElementById("pick");
 const cardsEl = document.getElementById("cards");
+
+const HERO_CLASSES = [
+  {
+    id: "knight",
+    name: "Рыцарь (Knight)",
+    icon: "🛡️",
+    desc: "Мастер тяжелого ближнего боя. Высокая броня, сокрушающие удары и блоки щитом.",
+    weaponsDesc: "1: Молот | 2: Меч и Щит | 3: Копье",
+    badge: "Ближний бой",
+    themeColor: "#94b8e8",
+  },
+  {
+    id: "ranger",
+    name: "Следопыт (Ranger)",
+    icon: "🏹",
+    desc: "Мастер дальнего боя и скрытности. Мобильность, снайперские выстрелы и веера клинков.",
+    weaponsDesc: "1: Авангардный Лук | 2: Теневые Клинки | 3: Мортира",
+    badge: "Дальний бой",
+    themeColor: "#00f0ff",
+  },
+  {
+    id: "mage",
+    name: "Архимаг (Void Mage)",
+    icon: "🔮",
+    desc: "Повелитель магии Бездны. Разрушительные энергетические сферы и огромный AoE-сплеш.",
+    weaponsDesc: "1: Посох Бездны",
+    badge: "Магия",
+    themeColor: "#ff45c8",
+  },
+];
+
 function buildPick(){
   cardsEl.innerHTML = "";
-  for (const w of weapons.list()){
-    const d = weapons.def(w);
+  for (const c of HERO_CLASSES){
     const div = document.createElement("div");
     div.className="card";
-    div.innerHTML = `<b>${d.name}</b><div class="muted">${d.hint}</div>`;
+    div.style.borderLeft = `3px solid ${c.themeColor}`;
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <b style="font-size:16px;color:#fff">${c.icon} ${c.name}</b>
+        <span style="font-size:11px;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,0.08);color:${c.themeColor}">${c.badge}</span>
+      </div>
+      <div class="muted" style="font-size:13px;line-height:1.4">${c.desc}</div>
+      <div style="margin-top:10px;font-size:12px;color:${c.themeColor};background:rgba(0,0,0,0.25);padding:6px 8px;border-radius:6px">
+        <b>Арсенал:</b> ${c.weaponsDesc}
+      </div>
+    `;
     div.addEventListener("click", ()=>{
-      weapons.equip(w);
+      player.setClass?.(c.id);
+      weapons.setClass(c.id);
       pickEl.style.display = "none";
-      hud.setWeaponName(d.name);
+      const curW = weapons.getWeapon();
+      const d = weapons.def(curW);
+      if (d) hud.setWeaponName(d.name);
       hud.setHintVisible(false);
       input.requestPointerLock();
-      audio.autoStart?.(); // start music on first user gesture if it was enabled before
+      audio.autoStart?.();
     });
     cardsEl.appendChild(div);
   }
@@ -71,12 +114,23 @@ function buildPick(){
 buildPick();
 window.__game = { enemies, player, weapons, engine, input, world };
 
-// Quick weapon hotkeys (1: Глефа, 2: Молот, 3: Меч и Щит, 4: Лук, 5: Посох)
+// Quick weapon hotkeys per class
 window.addEventListener("keydown", (e) => {
   if (paused || gameOver || !weapons.hasWeapon()) return;
-  const keyMap = { Digit1: "spear", Digit2: "hammer", Digit3: "sword", Digit4: "bow", Digit5: "staff" };
-  if (keyMap[e.code]) {
-    const w = keyMap[e.code];
+  const cls = weapons.getClass?.() || "knight";
+  let w = null;
+  if (cls === "knight") {
+    if (e.code === "Digit1") w = "hammer";
+    else if (e.code === "Digit2") w = "sword";
+    else if (e.code === "Digit3") w = "spear";
+  } else if (cls === "ranger") {
+    if (e.code === "Digit1") w = "bow";
+    else if (e.code === "Digit2") w = "daggers";
+    else if (e.code === "Digit3") w = "bombard";
+  } else if (cls === "mage") {
+    if (e.code === "Digit1") w = "staff";
+  }
+  if (w && weapons.hasWeapon(w)) {
     weapons.equip(w);
     const d = weapons.def(w);
     if (d) hud.setWeaponName(d.name);

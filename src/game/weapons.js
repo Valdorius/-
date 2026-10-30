@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_15";
+import { createFpsArms } from "./fps_arms.js?v=20261030_16";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -228,6 +228,26 @@ let cd = 0,
     // Посох: медленный большой взрывной шар (чтобы читалось и было "опасно")
     staff: { name: "Посох", hint: "Магия. Медленная взрывная сфера с высоким уроном.", dmg: 34, rate: 1.35, speed: 9.0, splash: 2.20 }
   };
+
+  let currentClass = "knight";
+  const classWeapons = {
+    knight: ["hammer", "sword", "spear"],
+    ranger: ["bow"],
+    mage:   ["staff"]
+  };
+
+  function setClass(c) {
+    currentClass = (c === "ranger") ? "ranger" : (c === "mage") ? "mage" : "knight";
+    if (fpsArms && typeof fpsArms.setClassArms === "function") {
+      fpsArms.setClassArms(currentClass);
+    }
+    const primary = classWeapons[currentClass]?.[0] || "spear";
+    equip(primary);
+  }
+
+  function getClass() {
+    return currentClass;
+  }
 
   function list() { return Object.keys(defs); }
   function def(id) { return defs[id]; }
@@ -2752,6 +2772,10 @@ if (st?.spearLifesteal){
     def,
     hasWeapon,
     equip,
+    setClass,
+    getClass,
+    classWeapons,
+    getWeapon() { return weapon; },
     tick,
     meleeQuery,
     bindProjectiles,

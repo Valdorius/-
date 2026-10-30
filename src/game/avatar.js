@@ -731,9 +731,15 @@ export function createVoxelAvatar({
     }
   }
 
+  function setClass(c) {
+    const key = (c === "ranger") ? "ranger" : (c === "mage") ? "mage" : "knight";
+    attachVOXSkin(g, key, { replace: true, keepExisting: false });
+  }
+
   return {
     root: g,
     rig,
+    setClass,
     setMoving01,
     setAimPitch,
     setWeapon,

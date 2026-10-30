@@ -1,16 +1,19 @@
 import * as THREE from "three";
-import { loadVOX } from "./vox_loader.js?v=20261030_15";
+import { loadVOX } from "./vox_loader.js?v=20261030_16";
 
 /**
  * VOX registry with articulated limb rig support.
  * Important: never "blank" a character until VOX is actually loaded.
  * This prevents invisible enemies when a VOX fails to parse/load.
  */
-const V = "20261030_15";
+const V = "20261030_16";
 
 export const VOX_MODELS = {
-  // 80x80x80 armored knight model based on bot skeleton → voxelSize 0.022 = ~1.75m tall
-  player:   { url: `./assets/models/player.vox?v=${V}`,   voxelSize: 0.022, scale: 1.0, pivot: "bottom_center" },
+  // 80x80x80 Hero class models
+  knight:   { url: `./assets/models/knight.vox?v=${V}`,   voxelSize: 0.022, scale: 1.0, pivot: "bottom_center" },
+  ranger:   { url: `./assets/models/ranger.vox?v=${V}`,   voxelSize: 0.022, scale: 1.0, pivot: "bottom_center" },
+  mage:     { url: `./assets/models/mage.vox?v=${V}`,     voxelSize: 0.022, scale: 1.0, pivot: "bottom_center" },
+  player:   { url: `./assets/models/knight.vox?v=${V}`,   voxelSize: 0.022, scale: 1.0, pivot: "bottom_center" },
   ranged:   { url: `./assets/models/ranged.vox?v=${V}`,   voxelSize: 0.056, scale: 1.0, pivot: "bottom_center" },
   sprinter: { url: `./assets/models/sprinter.vox?v=${V}`, voxelSize: 0.050, scale: 1.0, pivot: "bottom_center" },
   shielder: { url: `./assets/models/shielder.vox?v=${V}`, voxelSize: 0.056, scale: 1.0, pivot: "bottom_center" },

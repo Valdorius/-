@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
-import { createVoxelAvatar } from "./avatar.js?v=20261030_15";
+import { createVoxelAvatar } from "./avatar.js?v=20261030_16";
 
 export function createPlayer({ engine, input, world, progression=null }) {
   const { camera, scene } = engine;
@@ -156,6 +156,9 @@ export function createPlayer({ engine, input, world, progression=null }) {
 
     // Third-person voxel avatar (hidden from local FPS camera by default via layers)
     avatar,
+    setClass(c) {
+      avatar?.setClass?.(c);
+    },
     // Enable/disable rendering of avatars (layer 2) on this camera.
     showAvatars(v=true){
       avatar.root.visible = !!v;
