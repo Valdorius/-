@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_10";
+import { createFpsArms } from "./fps_arms.js?v=20261030_11";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -65,7 +65,8 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
   // refs for spear viewmodel animation
   const spearAnim = {
     gripRear: null,
-    gripFront: null
+    gripFront: null,
+    runeMat: null
   };
 
   // refs for bow viewmodel animation
@@ -119,13 +120,18 @@ let cd = 0,
     bowCharging = false,
     bowCharge = 0;
 
-  // spear combo state
+  // spear combo & thrust state
   let comboStep = 0;
   let comboNextStep = 0;
   let comboGrace = 0;
   let comboQueued = false;
   let prevMouseDown = false;
   let spearHitSet = new Set();
+  let spearThrustT = 0;
+  let spearThrustMax = 0.48;
+  let spearThrustCd = 0;
+  let spearThrustHitTriggered = false;
+  let spearThrustHitSet = new Set();
 
   // hammer state
   let hammerSwingT = 0;
@@ -172,7 +178,16 @@ let cd = 0,
   let spawnProjectile = null;
 
   const defs = {
-    spear: { name: "Руническая глефа", hint: "Ближний бой. Широкие рубящие свипы, диагональные срезы и сокрушительный вертикальный удар.", meleeRange: 3.3, dmg: 34, rate: 2.0, arc: 1.45 },
+    spear: {
+      name: "Руническая глефа",
+      hint: "Ближний бой. ЛКМ — рубящие комбо-свипы (3.35м). ПКМ — глубокий колющий выпад (пробитие брони, дальность 4.2м).",
+      meleeRange: 3.35,
+      dmg: 34,
+      rate: 2.0,
+      arc: 1.45,
+      thrustRange: 4.15,
+      thrustDmg: 68
+    },
     hammer: { name: "Рунический молот", hint: "Тяжелый сокрушитель. ЛКМ — размашистый сокрушительный свип (стан/нокаут). ПКМ — удар оземь (AoE-землетрясение).", meleeRange: 2.85, dmg: 58, rate: 1.25, arc: 2.30 },
     sword: { name: "Меч и Щит", hint: "Авангард. ЛКМ — серия из 3 ударов (срез/бэкхенд/выпад). ПКМ — блок (80% защита) и идеальное парирование (0.25с). ПКМ+ЛКМ — удар щитом (стан толпы).", meleeRange: 2.65, dmg: 38, rate: 2.2, arc: 1.60 },
     bow: { name: "Рунический лук", hint: "Дальний бой. Удерживай ЛКМ — натяжение и рунный заряд, отпусти — выстрел.", dmgMin: 22, dmgMax: 56, chargeTime: 0.85, speed: 24 },
@@ -311,78 +326,78 @@ let cd = 0,
         metalness: 0.15
       });
 
-      // 1. Древко: мощный мореный ясень увеличенной толщины
-      const SHAFT_LEN = 1.85;
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.050, SHAFT_LEN, 8), darkWood);
+      // 1. Древко: мощный мореный ясень увеличенной длины (2.45м)
+      const SHAFT_LEN = 2.45;
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.048, SHAFT_LEN, 8), darkWood);
       shaft.rotation.x = Math.PI / 2;
-      shaft.position.set(0, 0.02, -0.28);
+      shaft.position.set(0, 0.02, -0.42);
       g.add(shaft);
 
       // 2. Стальные накладные полосы-лангеты (защита древка от перерубания вражеским оружием)
-      const langetTop = box(0.018, 0.014, 0.68, 0, 0.07, -0.68, darkSteel);
-      const langetBot = box(0.018, 0.014, 0.68, 0, -0.03, -0.68, darkSteel);
-      const langetLeft = box(0.014, 0.018, 0.68, -0.05, 0.02, -0.68, darkSteel);
-      const langetRight = box(0.014, 0.018, 0.68, 0.05, 0.02, -0.68, darkSteel);
+      const langetTop = box(0.018, 0.014, 0.85, 0, 0.07, -1.02, darkSteel);
+      const langetBot = box(0.018, 0.014, 0.85, 0, -0.03, -1.02, darkSteel);
+      const langetLeft = box(0.014, 0.018, 0.85, -0.05, 0.02, -1.02, darkSteel);
+      const langetRight = box(0.014, 0.018, 0.85, 0.05, 0.02, -1.02, darkSteel);
       g.add(langetTop, langetBot, langetLeft, langetRight);
 
       // Стальные фиксирующие кольца с заклепками
-      for (const rz of [-0.40, -0.68, -0.96]) {
-        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.032, 8), darkSteel);
+      for (const rz of [-0.60, -0.98, -1.36]) {
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.056, 0.032, 8), darkSteel);
         ring.rotation.x = Math.PI / 2;
         ring.position.set(0, 0.02, rz);
         g.add(ring);
       }
 
       // 3. Плотная двойная кожаная обмотка хвата
-      // Передний хват
-      const gripFront = new THREE.Mesh(new THREE.CylinderGeometry(0.054, 0.054, 0.36, 8), wrap);
+      // Передний хват (направляющая рука)
+      const gripFront = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.38, 8), wrap);
       gripFront.rotation.x = Math.PI / 2;
-      gripFront.position.set(0, 0.02, -0.10);
+      gripFront.position.set(0, 0.02, -0.06);
       g.add(gripFront);
 
-      // Задний хват
-      const gripRear = new THREE.Mesh(new THREE.CylinderGeometry(0.054, 0.054, 0.32, 8), wrap);
+      // Задний хват (толчковая рука)
+      const gripRear = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.34, 8), wrap);
       gripRear.rotation.x = Math.PI / 2;
-      gripRear.position.set(0, 0.02, 0.42);
+      gripRear.position.set(0, 0.02, 0.52);
       g.add(gripRear);
 
       // Якоря для воксельных рук от 1-го лица
       spearAnim.gripRear = new THREE.Object3D();
-      spearAnim.gripRear.position.set(0, 0.02, 0.42);
+      spearAnim.gripRear.position.set(0, 0.02, 0.52);
       g.add(spearAnim.gripRear);
 
       spearAnim.gripFront = new THREE.Object3D();
-      spearAnim.gripFront.position.set(0, 0.02, -0.10);
+      spearAnim.gripFront.position.set(0, 0.02, -0.06);
       spearAnim.gripFront.rotation.set(0, 0, Math.PI);
       g.add(spearAnim.gripFront);
 
       // 4. Массивный гранёный затыльник-противовес с задним шипом
-      const pommel = new THREE.Mesh(new THREE.CylinderGeometry(0.070, 0.058, 0.12, 8), darkSteel);
+      const pommel = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.056, 0.12, 8), darkSteel);
       pommel.rotation.x = Math.PI / 2;
-      pommel.position.set(0, 0.02, 0.64);
+      pommel.position.set(0, 0.02, 0.80);
       g.add(pommel);
-      const rearSpike = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.032, 0.12), steel);
-      rearSpike.position.set(0, 0.02, 0.74);
+      const rearSpike = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.030, 0.12), steel);
+      rearSpike.position.set(0, 0.02, 0.90);
       g.add(rearSpike);
 
       // 5. Мощная стальная посадочная втулка и фигурная гарда
-      const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.070, 0.078, 0.22, 8), darkSteel);
+      const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.076, 0.22, 8), darkSteel);
       socket.rotation.x = Math.PI / 2;
-      socket.position.set(0, 0.02, -1.02);
+      socket.position.set(0, 0.02, -1.45);
       g.add(socket);
 
       // Массивная фигурная крестовина-упор
-      const guard = box(0.20, 0.10, 0.048, 0, 0.02, -1.08, darkSteel);
+      const guard = box(0.20, 0.10, 0.048, 0, 0.02, -1.52, darkSteel);
       g.add(guard);
 
       // Светящийся рунический кристалл в гарде
       const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.058, 0), runeMat);
-      gem.position.set(0, 0.02, -1.08);
+      gem.position.set(0, 0.02, -1.52);
       g.add(gem);
 
       // 6. НАСТОЯЩИЙ МАССИВНЫЙ КЛИНОК ГЛЕФЫ (Широкое изогнутое рубящее лезвие)
       const bladeGroup = new THREE.Group();
-      bladeGroup.position.set(0, 0.02, -1.10);
+      bladeGroup.position.set(0, 0.02, -1.54);
 
       // Основание клинка (шейка у втулки)
       bladeGroup.add(box(0.052, 0.15, 0.18, 0, 0.02, -0.09, darkSteel));
@@ -422,8 +437,9 @@ let cd = 0,
       // Поворачиваем группу клинка под углом ~38° для идеального обзора широкой грани клинка!
       bladeGroup.rotation.z = Math.PI * 0.21;
       g.add(bladeGroup);
+      spearAnim.runeMat = runeMat;
 
-      g.scale.set(1.40, 1.40, 1.40);
+      g.scale.set(2.05, 2.05, 2.05);
       model.add(g);
 
       // Боевая диагональная стойка в руках от 1-го лица
@@ -980,7 +996,7 @@ let cd = 0,
   const spearCombos = [
     // 1. Широкий рубящий свип справа налево (Horizontal Cleave)
     // Руки остаются внизу справа, клинок рассекает экран прямо через перекрестие
-    { dur: 0.36, dmgMul: 1.10, arc: 1.45, rangeMul: 1.25, active: [0.18, 0.58],
+    { dur: 0.36, dmgMul: 1.10, arc: 1.45, rangeMul: 1.0, active: [0.18, 0.58],
       anim(p) {
         if (p < 0.20) {
           // Замах назад вправо: остриё взводится справа на уровне глаз
@@ -1031,7 +1047,7 @@ let cd = 0,
 
     // 2. Обратный восходящий диагональный срез (Upward Diagonal Slash)
     // Клинок взмывает снизу-слева через центр в правый верхний угол
-    { dur: 0.34, dmgMul: 1.15, arc: 1.35, rangeMul: 1.20, active: [0.16, 0.54],
+    { dur: 0.34, dmgMul: 1.15, arc: 1.35, rangeMul: 1.0, active: [0.16, 0.54],
       anim(p) {
         if (p < 0.16) {
           // Замах снизу-слева
@@ -1082,7 +1098,7 @@ let cd = 0,
 
     // 3. Сокрушительный вертикальный удар сверху вниз (Heavy Overhead Slam Finisher)
     // Подъём глефы высоко над головой и мощное обрушение строго по центральной вертикали
-    { dur: 0.44, dmgMul: 1.65, arc: 1.15, rangeMul: 1.35, active: [0.22, 0.56],
+    { dur: 0.44, dmgMul: 1.65, arc: 1.15, rangeMul: 1.05, active: [0.22, 0.56],
       anim(p) {
         if (p < 0.22) {
           // Замах: подъём клинка высоко над прицелом
@@ -1147,6 +1163,157 @@ let cd = 0,
     const st = getStats();
     if (st && (st.spearNextRadiusT || 0) > 0) st.spearNextRadiusT = 0;
     spearStreak = 0; spearStreakT = 0;
+  }
+
+  function startSpearThrust() {
+    spearThrustT = spearThrustMax;
+    spearThrustCd = 0.95; // 0.95s CD
+    spearThrustHitTriggered = false;
+    spearThrustHitSet.clear();
+    cd = spearThrustMax + 0.06;
+  }
+
+  function animateSpearThrust(p) {
+    if (p < 0.20) {
+      // 1. Взвод/оттяг: глефа оттягивается назад и выравнивается строго по прицелу
+      const t = p / 0.20;
+      const k = t * t * (3 - 2 * t);
+      hand.position.set(
+        baseHandPos.x - 0.07 * k,
+        baseHandPos.y + 0.03 * k,
+        baseHandPos.z + 0.12 * k
+      );
+      hand.rotation.set(
+        baseHandRot.x + 0.04 * k,
+        baseHandRot.y - 0.12 * k,
+        baseHandRot.z + 0.06 * k
+      );
+      if (spearAnim.runeMat) {
+        spearAnim.runeMat.emissiveIntensity = 2.0 + 2.5 * k;
+      }
+    } else if (p < 0.50) {
+      // 2. Мощный стремительный пронзающий выпад вперед вдоль прицела
+      const t = (p - 0.20) / 0.30;
+      const k = t * t * (3 - 2 * t);
+      hand.position.set(
+        baseHandPos.x - 0.07 + 0.03 * k,
+        baseHandPos.y + 0.03 - 0.02 * k,
+        baseHandPos.z + 0.12 - 0.88 * k
+      );
+      hand.rotation.set(
+        baseHandRot.x + 0.04 - 0.06 * k,
+        baseHandRot.y - 0.12 + 0.14 * k,
+        baseHandRot.z + 0.06 - 0.08 * k
+      );
+      if (spearAnim.runeMat) {
+        spearAnim.runeMat.emissiveIntensity = 4.5;
+      }
+    } else {
+      // 3. Четкий возврат в боевую стойку
+      const t = (p - 0.50) / 0.50;
+      const k = 1 - t * (2 - t);
+      hand.position.set(
+        baseHandPos.x - 0.04 * k,
+        baseHandPos.y + 0.01 * k,
+        baseHandPos.z - 0.76 * k
+      );
+      hand.rotation.set(
+        baseHandRot.x - 0.02 * k,
+        baseHandRot.y + 0.02 * k,
+        baseHandRot.z - 0.02 * k
+      );
+      if (spearAnim.runeMat) {
+        spearAnim.runeMat.emissiveIntensity = 2.0 + 2.5 * k;
+      }
+    }
+  }
+
+  function executeSpearThrustHit() {
+    camImpulseX = 0.025;
+    camImpulseZ = (Math.random() - 0.5) * 0.02;
+
+    const origin = new THREE.Vector3();
+    camera.getWorldPosition(origin);
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    dir.y *= 0.20;
+    dir.normalize();
+
+    // Piercing thrust shockwave along the attack line
+    fx?.addShockwave?.(origin.clone().addScaledVector(dir, 2.0), 1.6);
+
+    if (!lastEnemiesRef || typeof lastEnemiesRef.forEachInRadius !== "function") return;
+
+    const st = getStats();
+    const range = (defs.spear.thrustRange || 4.15) * (st?.spearReachMul ?? 1);
+    const arc = 0.32 * (st?.spearArcMul ?? 1); // focused piercing beam (~18.5 deg)
+
+    spearThrustHitSet.clear();
+
+    lastEnemiesRef.forEachInRadius(origin, range, (e) => {
+      const ep = (e && e.position) || e?.pos || (e.mesh && e.mesh.position);
+      if (!ep) return;
+
+      const to = safeCloneVec3(ep).sub(origin);
+      to.y = 0;
+      const dist = to.length();
+      if (dist > range) return;
+      to.normalize();
+
+      if (Math.acos(clamp(to.dot(dir), -1, 1)) > arc) return;
+
+      const id = (e && (e.id ?? e._id ?? e.uuid)) ?? null;
+      if (id !== null && spearThrustHitSet.has(id)) return;
+      if (id !== null) spearThrustHitSet.add(id);
+
+      let dmg = (defs.spear.thrustDmg || 68) * ((st?.damageMul ?? 1) * (st?.arenaDamageMul ?? 1)) * (st?.spearDamageMul ?? 1);
+
+      // Hit streak bonus applies to thrust as well
+      if (spearStreak > 0) {
+        const extra = Math.min(Math.max(spearStreak - 1, 0), 2) * 0.10;
+        dmg *= (1 + extra);
+      }
+
+      // Impale perk bonus
+      if (st?.spearImpaleEvery) {
+        weaponsState.spearImpaleCounter = (weaponsState.spearImpaleCounter || 0) + 1;
+        if ((weaponsState.spearImpaleCounter % st.spearImpaleEvery) === 0) {
+          dmg *= (st.spearImpaleMul ?? 1.8);
+        }
+      }
+
+      const hitPoint = ep ? new THREE.Vector3(ep.x, (ep.y || 0) + 1.1, ep.z) : origin.clone().addScaledVector(dir, 2.8);
+      const meta = {
+        kind: "spear_thrust",
+        combo: 3,
+        srcPos: origin,
+        point: hitPoint,
+        crushShield: true,
+        piercing: true,
+        stagger: 0.65,
+        knockback: 0.90,
+        knockDir: dir
+      };
+
+      if (st?.spearBleed) {
+        meta.bleed = { ...st.spearBleed, chance: Math.min(1.0, (st.spearBleed.chance ?? 0.3) * 1.5) };
+      }
+
+      if (typeof lastEnemiesRef.applyDamage === "function") {
+        const dealt = lastEnemiesRef.applyDamage(id, dmg, meta);
+        if (st?.spearLifesteal) {
+          player.hp = clamp(player.hp + dmg * (st.spearLifesteal || 0), 0, player.hpMax);
+        }
+        if (dealt?.killed && progression?.onKill) {
+          progression.onKill(dealt.xp || 0);
+          if (dealt.bossLoot && progression.openBossLoot) progression.openBossLoot();
+        }
+      }
+
+      // Impale streak increment
+      spearStreak = Math.min(4, spearStreak + 1);
+      spearStreakT = 1.2;
+    });
   }
 
   function startHammerSwing() {
@@ -1727,6 +1894,10 @@ let cd = 0,
     cd = 0; swingT = 0; castT = 0; bowCharge = 0; bowCharging = false;
     comboStep = 0; comboNextStep = 0; comboGrace = 0; comboQueued = false;
     spearHitSet = new Set();
+    spearThrustT = 0;
+    spearThrustCd = 0;
+    spearThrustHitTriggered = false;
+    spearThrustHitSet.clear();
     hammerSwingT = 0;
     hammerSlamT = 0;
     hammerSlamCd = 0;
@@ -1891,7 +2062,26 @@ let cd = 0,
     }
 
     if (weapon === "spear") {
-      if (swingT > 0) {
+      if (spearThrustCd > 0) spearThrustCd = Math.max(0, spearThrustCd - dt);
+
+      if (spearThrustT > 0) {
+        spearThrustT -= dt;
+        const p = 1 - spearThrustT / spearThrustMax;
+        animateSpearThrust(p);
+        player?.avatar?.setCombatAction?.({ weapon: "spear", action: "thrust", progress: p });
+
+        if (!spearThrustHitTriggered && p >= 0.30) {
+          spearThrustHitTriggered = true;
+          executeSpearThrustHit();
+        }
+
+        if (spearThrustT <= 0) {
+          spearThrustT = 0;
+          player?.avatar?.setCombatAction?.(null);
+          hand.rotation.copy(baseHandRot);
+          hand.position.copy(baseHandPos);
+        }
+      } else if (swingT > 0) {
         swingT -= dt;
         const p = 1 - swingT / swingMax;
         const s = spearCombos[comboStep] || spearCombos[0];
@@ -1924,7 +2114,9 @@ let cd = 0,
           comboNextStep = 0;
         }
 
-        if (justPressed && cd <= 0) {
+        if (rightJustPressed && spearThrustCd <= 0 && cd <= 0) {
+          startSpearThrust();
+        } else if (justPressed && cd <= 0) {
           startSpearSwing(comboNextStep);
         }
       }

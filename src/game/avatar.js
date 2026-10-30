@@ -244,17 +244,24 @@ export function createVoxelAvatar({
       // Glowing golden fuller channel
       wpart({ sx: 0.022, sy: 0.72, sz: 0.030, x: 0, y: 0.54, z: 0, mat: matGoldRune, name: "RuneFuller" });
     } else if (wType === "spear") {
-      // 1. Long shaft
-      wpart({ sx: 0.05, sy: 1.85, sz: 0.05, x: 0, y: 0.45, z: 0, mat: matWeaponWood, name: "Shaft" });
-      // Rings
-      wpart({ sx: 0.07, sy: 0.04, sz: 0.07, x: 0, y: 0.85, z: 0, mat: matWeaponDark });
-      wpart({ sx: 0.07, sy: 0.04, sz: 0.07, x: 0, y: 1.08, z: 0, mat: matWeaponDark });
-      // Broad curved glefa blade
-      wpart({ sx: 0.04, sy: 0.65, sz: 0.22, x: 0, y: 1.40, z: 0.06, mat: matWeaponSteel, name: "Blade" });
-      // Hook
-      wpart({ sx: 0.035, sy: 0.12, sz: 0.10, x: 0, y: 1.25, z: -0.09, mat: matWeaponDark, name: "Hook" });
+      // 1. Long shaft (2.45m)
+      wpart({ sx: 0.05, sy: 2.45, sz: 0.05, x: 0, y: 0.55, z: 0, mat: matWeaponWood, name: "Shaft" });
+      // Rings & steel bands
+      wpart({ sx: 0.07, sy: 0.04, sz: 0.07, x: 0, y: 1.15, z: 0, mat: matWeaponDark });
+      wpart({ sx: 0.07, sy: 0.04, sz: 0.07, x: 0, y: 1.45, z: 0, mat: matWeaponDark });
+      wpart({ sx: 0.07, sy: 0.04, sz: 0.07, x: 0, y: 1.70, z: 0, mat: matWeaponDark });
+      // Socket & Guard
+      wpart({ sx: 0.08, sy: 0.12, sz: 0.08, x: 0, y: 1.76, z: 0, mat: matWeaponDark, name: "Socket" });
+      wpart({ sx: 0.18, sy: 0.04, sz: 0.09, x: 0, y: 1.82, z: 0, mat: matWeaponDark, name: "Guard" });
+      // Broad curved glefa blade (0.85m)
+      wpart({ sx: 0.04, sy: 0.85, sz: 0.26, x: 0, y: 2.24, z: 0.06, mat: matWeaponSteel, name: "Blade" });
+      // Hook / back spike
+      wpart({ sx: 0.035, sy: 0.14, sz: 0.11, x: 0, y: 2.05, z: -0.10, mat: matWeaponDark, name: "Hook" });
       // Glowing cyan rune channel
-      wpart({ sx: 0.048, sy: 0.45, sz: 0.04, x: 0, y: 1.38, z: 0.04, mat: matCyanRune, name: "RuneChannel" });
+      wpart({ sx: 0.048, sy: 0.65, sz: 0.04, x: 0, y: 2.22, z: 0.04, mat: matCyanRune, name: "RuneChannel" });
+      // Rear counter-pommel & spike
+      wpart({ sx: 0.07, sy: 0.10, sz: 0.07, x: 0, y: -0.66, z: 0, mat: matWeaponDark, name: "Pommel" });
+      wpart({ sx: 0.03, sy: 0.08, sz: 0.03, x: 0, y: -0.74, z: 0, mat: matWeaponSteel, name: "RearSpike" });
     } else if (wType === "bow") {
       // Curved runic bow stave
       wpart({ sx: 0.05, sy: 1.30, sz: 0.12, x: 0, y: 0.20, z: 0.05, mat: matWeaponWood, name: "Stave" });
@@ -567,11 +574,52 @@ export function createVoxelAvatar({
         }
       }
     } else if (combatAction && combatAction.weapon === "spear") {
-      // --- SPEAR COMBOS ---
+      // --- SPEAR COMBOS & DEEP THRUST ---
       const p = Math.max(0, Math.min(1, combatAction.progress || 0));
+      const action = combatAction.action || "swing";
       const step = combatAction.comboStep || 0;
 
-      if (step === 2) {
+      if (action === "thrust") {
+        // Deep Piercing Lunge (глубокий выпад)
+        if (p < 0.22) {
+          // Windup: оттяг назад, скрутка корпуса, замах копьем
+          const t = p / 0.22;
+          const k = t * t;
+          torsoRotX = -0.18 * k;
+          torsoRotY = -0.32 * k;
+          armRRotX = 0.55 - 0.35 * k;
+          armRRotY = -0.25 * k;
+          armLRotX = 0.75 + 0.20 * k;
+          legRRotX = -0.30 * k;
+          legLRotX = 0.25 * k;
+        } else if (p < 0.58) {
+          // Мощный стремительный выпад вперед с глубоким наклоном и выпрямлением рук
+          const t = (p - 0.22) / 0.36;
+          const k = t * t * (3 - 2 * t);
+          torsoRotX = -0.18 + 0.58 * k;
+          torsoRotY = -0.32 + 0.50 * k;
+          armRRotX = 0.20 + 1.25 * k;
+          armRRotY = -0.25 + 0.45 * k;
+          armRRotZ = -0.20 * k;
+          armLRotX = 0.95 - 0.45 * k;
+          armLRotY = 0.30 * k;
+          legLRotX = 0.25 + 0.45 * k;
+          legRRotX = -0.30 - 0.35 * k;
+          torsoPosY = -0.12 * k;
+        } else {
+          // Возврат в исходную боевую стойку
+          const t = (p - 0.58) / 0.42;
+          const k = 1 - t * (2 - t);
+          torsoRotX = 0.40 * k;
+          torsoRotY = 0.18 * k;
+          armRRotX = 1.45 * k + 0.55 * (1 - k);
+          armRRotY = 0.20 * k;
+          armLRotX = 0.50 * k + 0.75 * (1 - k);
+          legLRotX = 0.70 * k;
+          legRRotX = -0.65 * k;
+          torsoPosY = -0.12 * k;
+        }
+      } else if (step === 2) {
         // Overhead heavy finisher
         if (p < 0.35) {
           const t = p / 0.35;
