@@ -401,7 +401,7 @@ export function createVoxelAvatar({
     // Resting stance with Sword & Shield
     if (currentWeaponId === "sword" && !combatAction) {
       armRRotX = 0.45; armRRotY = -0.15; armRRotZ = 0.18;
-      armLRotX = 0.95; armLRotY = 0.45; armLRotZ = -0.22;
+      armLRotX = 0.62; armLRotY = 0.45; armLRotZ = -0.28;
       torsoRotY = -0.12;
       if (state.moving > 0.05) {
         armRRotX += sway * 0.20;

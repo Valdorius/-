@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_09";
+import { createFpsArms } from "./fps_arms.js?v=20261030_10";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -31,8 +31,8 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
   const SWORD_REST_POS  = new THREE.Vector3(0.24, -0.26, -0.40);
   const SWORD_REST_ROT  = new THREE.Euler(0.15, -0.18, -0.08);
 
-  const SHIELD_REST_POS = new THREE.Vector3(-0.28, -0.22, -0.38);
-  const SHIELD_REST_ROT = new THREE.Euler(0.08, 0.32, -0.10);
+  const SHIELD_REST_POS = new THREE.Vector3(-0.38, -0.48, -0.44);
+  const SHIELD_REST_ROT = new THREE.Euler(-0.22, 0.50, -0.28);
 
   const SHIELD_BLOCK_POS = new THREE.Vector3(-0.04, -0.16, -0.32);
   const SHIELD_BLOCK_ROT = new THREE.Euler(-0.05, 0.05, 0.0);
