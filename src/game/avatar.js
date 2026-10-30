@@ -296,6 +296,17 @@ export function createVoxelAvatar({
     let legLRotX = sway, legLRotZ = 0;
     let legRRotX = -sway, legRRotZ = 0;
 
+    // Resting stance with hammer on shoulder
+    if (currentWeaponId === "hammer" && !combatAction) {
+      armRRotX = 0.85; armRRotY = -0.25; armRRotZ = 0.35;
+      armLRotX = 0.95; armLRotY = 0.40; armLRotZ = -0.20;
+      torsoRotY = -0.15;
+      if (state.moving > 0.05) {
+        armRRotX += sway * 0.25;
+        armLRotX += -sway * 0.25;
+      }
+    }
+
     if (combatAction && combatAction.weapon === "hammer") {
       const p = Math.max(0, Math.min(1, combatAction.progress || 0));
 
@@ -340,53 +351,54 @@ export function createVoxelAvatar({
           torsoRotX = 0.63 * k;
           torsoPosY = 0.32 - 0.24 * k + bounce;
           headRotX = 0.40 * k;
-          armRRotX = -0.45 * k + 0.55 * (1 - k);
-          armLRotX = -0.45 * k + 0.75 * (1 - k);
+          armRRotX = -0.45 * k + 0.85 * (1 - k);
+          armLRotX = -0.45 * k + 0.95 * (1 - k);
           legLRotX = -0.35 * k;
           legRRotX = -0.35 * k;
         }
       } else {
-        // --- HAMMER ЛКМ: Horizontal Crushing Sweep ---
-        if (p < 0.22) {
-          // 1. Windup behind right shoulder
-          const t = p / 0.22;
+        // --- HAMMER ЛКМ: Истинный Overhead Smash (Сокрушительный вертикальный удар сверху вниз) ---
+        if (p < 0.26) {
+          // 1. Взвод: подъем массы вверх-назад за правое плечо, прогиб спины
+          const t = p / 0.26;
           const k = t * t * (3 - 2 * t);
-          torsoRotY = -0.65 * k;
-          torsoRotX = -0.12 * k;
-          headRotY = 0.50 * k;
-          armRRotX = 0.90 * k;
-          armRRotY = -0.45 * k;
-          armRRotZ = 0.45 * k;
-          armLRotX = 0.85 * k;
-          armLRotY = 0.55 * k;
-          armLRotZ = -0.25 * k;
+          torsoRotX = -0.28 * k;
+          torsoRotY = -0.15 - 0.20 * k;
+          headRotY = 0.30 * k;
+          armRRotX = 0.85 + 1.35 * k;
+          armRRotY = -0.25 - 0.10 * k;
+          armRRotZ = 0.35 + 0.15 * k;
+          armLRotX = 0.95 + 1.10 * k;
+          armLRotY = 0.40 - 0.20 * k;
           legRRotX = -0.25 * k;
-          legLRotX = 0.25 * k;
-        } else if (p < 0.60) {
-          // 2. Violent cleave sweep through center to left
-          const t = (p - 0.22) / 0.38;
-          const k = t * t * (3 - 2 * t);
-          torsoRotY = -0.65 + 1.45 * k;
-          torsoRotX = -0.12 + 0.38 * k;
-          headRotY = 0.50 - 0.75 * k;
-          armRRotX = 0.90 + 0.35 * k;
-          armRRotY = -0.45 + 1.80 * k;
-          armRRotZ = 0.45 - 0.95 * k;
-          armLRotX = 0.85 - 0.20 * k;
-          armLRotY = 0.55 + 0.65 * k;
-          armLRotZ = -0.25 - 0.35 * k;
-          legLRotX = 0.25 + 0.25 * k;
-          legRRotX = -0.25 - 0.20 * k;
+          legLRotX = 0.20 * k;
+        } else if (p < 0.50) {
+          // 2. Падение массы: яростный вертикальный разруб сверху вниз через центр
+          const t = (p - 0.26) / 0.24;
+          const k = Math.pow(t, 2.2);
+          torsoRotX = -0.28 + 0.85 * k;
+          torsoRotY = -0.35 + 0.35 * k;
+          torsoPosY = 0.32 - 0.20 * k;
+          headRotX = pitchClamped * 0.35 + 0.45 * k;
+          armRRotX = 2.20 - 2.65 * k;
+          armRRotZ = 0.50 - 0.40 * k;
+          armLRotX = 2.05 - 2.50 * k;
+          armLRotY = 0.20 - 0.15 * k;
+          legLRotX = 0.20 + 0.30 * k;
+          legRRotX = -0.25 - 0.15 * k;
         } else {
-          // 3. Follow-through & deceleration
-          const t = (p - 0.60) / 0.40;
+          // 3. Импакт в землю и инерционный подъем обратно на плечо
+          const t = (p - 0.50) / 0.50;
           const k = 1 - t * (2 - t);
-          torsoRotY = 0.80 * k;
-          torsoRotX = 0.26 * k;
-          armRRotX = 1.25 * k + 0.55 * (1 - k);
-          armRRotY = 1.35 * k - 0.20 * (1 - k);
-          armLRotX = 0.65 * k + 0.75 * (1 - k);
-          armLRotY = 1.20 * k + 0.30 * (1 - k);
+          torsoRotX = 0.57 * k;
+          torsoPosY = 0.32 - 0.20 * k;
+          armRRotX = -0.45 * k + 0.85 * (1 - k);
+          armRRotY = -0.25;
+          armRRotZ = 0.10 * k + 0.35 * (1 - k);
+          armLRotX = -0.45 * k + 0.95 * (1 - k);
+          armLRotY = 0.05 * k + 0.40 * (1 - k);
+          legLRotX = 0.50 * k;
+          legRRotX = -0.40 * k;
         }
       }
     } else if (combatAction && combatAction.weapon === "spear") {
