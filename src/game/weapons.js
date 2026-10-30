@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_13";
+import { createFpsArms } from "./fps_arms.js?v=20261030_14";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -701,17 +701,17 @@ let cd = 0,
       bowAnim.runeMats.push(cyanRuneMat, cyanGlowMat);
 
       // --- 1. Riser & Grip (Центральная монолитная рукоять) ---
-      // Central ergonomic grip core
-      g.add(box(0.046, 0.20, 0.054, 0, 0, 0.015, gripWrap));
+      // Central ergonomic grip core (рукоять опущена вниз под хват руки)
+      g.add(box(0.046, 0.22, 0.054, 0, -0.040, 0.015, gripWrap));
       // Angled geometric facet cheeks
-      g.add(box(0.040, 0.18, 0.024, 0, 0, -0.015, facetMat));
+      g.add(box(0.040, 0.20, 0.024, 0, -0.040, -0.015, facetMat));
       // Alloy brackets top & bottom of grip
-      g.add(box(0.056, 0.025, 0.062, 0, 0.105, 0.015, alloyMat));
-      g.add(box(0.056, 0.025, 0.062, 0, -0.105, 0.015, alloyMat));
-      // Arrow shelf (sleek angular cutout on right side)
-      g.add(box(0.032, 0.016, 0.065, 0.028, 0.020, 0.025, alloyMat));
+      g.add(box(0.056, 0.025, 0.062, 0, 0.075, 0.015, alloyMat));
+      g.add(box(0.056, 0.025, 0.062, 0, -0.155, 0.015, alloyMat));
+      // Arrow shelf (угловая полочка под стрелу на правой стороне прямо под стрелой)
+      g.add(box(0.034, 0.016, 0.065, 0.028, 0.072, 0.025, alloyMat));
       // Riser center cyan energy core node
-      g.add(box(0.020, 0.14, 0.014, 0, 0, 0.038, cyanRuneMat));
+      g.add(box(0.020, 0.16, 0.014, 0, -0.030, 0.038, cyanRuneMat));
 
       // --- 2. Upper Limb (Верхнее граненое плечо) ---
       // Segment U1 (Riser transition, angled forward towards +Z)
@@ -804,7 +804,7 @@ let cd = 0,
       // --- 4. Radiant Energy Bowstring ---
       bowAnim.tipTop.set(0, 0.77, -0.060);
       bowAnim.tipBot.set(0, -0.77, -0.060);
-      bowAnim.nock.set(0, 0.018, -0.018);
+      bowAnim.nock.set(0, 0.080, -0.018);
 
       bowAnim.stringGeo = new THREE.BufferGeometry();
       bowAnim.stringGeo.setFromPoints([bowAnim.tipTop.clone(), bowAnim.nock.clone(), bowAnim.tipBot.clone()]);
@@ -814,34 +814,36 @@ let cd = 0,
       );
       g.add(bowAnim.stringLine);
 
-      // --- 5. Monolithic Vanguard Arrow ---
+      // --- 5. Monolithic Vanguard Arrow (лежит выше руки на полке) ---
       const arrowGroup = new THREE.Group();
       // Main faceted shaft
-      arrowGroup.add(box(0.018, 0.018, 0.62, 0, 0.018, 0.22, obsidianMat));
+      arrowGroup.add(box(0.018, 0.018, 0.62, 0, 0, 0.22, obsidianMat));
       // Energy core spine along arrow
-      arrowGroup.add(box(0.008, 0.006, 0.58, 0, 0.026, 0.22, cyanRuneMat));
+      arrowGroup.add(box(0.008, 0.006, 0.58, 0, 0.008, 0.22, cyanRuneMat));
       // Diamond-faceted steel broadhead
-      arrowGroup.add(box(0.055, 0.018, 0.12, 0, 0.018, 0.54, steelEdge));
-      arrowGroup.add(box(0.025, 0.014, 0.08, 0, 0.018, 0.56, cyanGlowMat));
+      arrowGroup.add(box(0.055, 0.018, 0.12, 0, 0, 0.54, steelEdge));
+      arrowGroup.add(box(0.025, 0.014, 0.08, 0, 0, 0.56, cyanGlowMat));
       // 3-Blade faceted crystalline fletchings
-      arrowGroup.add(box(0.006, 0.042, 0.10, 0, 0.042, -0.06, cyanGlowMat));
-      const fR = box(0.038, 0.020, 0.10, 0.022, 0.006, -0.06, cyanGlowMat);
+      arrowGroup.add(box(0.006, 0.042, 0.10, 0, 0.024, -0.06, cyanGlowMat));
+      const fR = box(0.038, 0.020, 0.10, 0.020, -0.012, -0.06, cyanGlowMat);
       fR.rotation.z = -Math.PI / 6;
       arrowGroup.add(fR);
-      const fL = box(0.038, 0.020, 0.10, -0.022, 0.006, -0.06, cyanGlowMat);
+      const fL = box(0.038, 0.020, 0.10, -0.020, -0.012, -0.06, cyanGlowMat);
       fL.rotation.z = Math.PI / 6;
       arrowGroup.add(fL);
 
       // Muzzle
       bowAnim.muzzle = new THREE.Object3D();
-      bowAnim.muzzle.position.set(0, 0.018, 0.66);
+      bowAnim.muzzle.position.set(0, 0, 0.66);
       arrowGroup.add(bowAnim.muzzle);
 
       // Якоря для воксельных рук от 1-го лица
+      // Левая рука держит рукоять НИЖЕ полки со стрелой
       bowAnim.gripLeft = new THREE.Object3D();
-      bowAnim.gripLeft.position.set(0, 0, 0.015);
+      bowAnim.gripLeft.position.set(0, -0.070, 0.015);
       g.add(bowAnim.gripLeft);
 
+      // Правая рука держит тетиву и стрелу у хвостовика
       bowAnim.gripRight = new THREE.Object3D();
       bowAnim.gripRight.position.set(0, 0, 0.02);
       arrowGroup.add(bowAnim.gripRight);

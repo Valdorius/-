@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
-import { createVoxelAvatar } from "./avatar.js?v=20261030_13";
+import { createVoxelAvatar } from "./avatar.js?v=20261030_14";
 
 export function createPlayer({ engine, input, world, progression=null }) {
   const { camera, scene } = engine;
