@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_06";
+import { createFpsArms } from "./fps_arms.js?v=20261030_07";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -23,8 +23,8 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
   const baseHandRot = hand.rotation.clone();
 
   // Исходная боевая стойка для тяжелого молота: покоится на правом плече
-  const HAMMER_REST_POS = new THREE.Vector3(0.26, -0.20, -0.46);
-  const HAMMER_REST_ROT = new THREE.Euler(-0.48, 0.38, -0.36);
+  const HAMMER_REST_POS = new THREE.Vector3(0.24, -0.28, -0.44);
+  const HAMMER_REST_ROT = new THREE.Euler(-0.35, -0.45, -0.20);
 
   // Первоклассный риг воксельных рук от первого лица
   const fpsArms = createFpsArms({ camera });
@@ -373,21 +373,21 @@ let cd = 0,
       // Центральный стальной сердечник
       headGroup.add(box(0.24, 0.24, 0.26, 0, 0, 0, darkSteel));
 
-      // ПЕРЕДНИЙ УДАРНЫЙ БОЁК (+Z, направлен по ходу удара)
-      headGroup.add(box(0.22, 0.22, 0.10, 0, 0, 0.18, steel));
-      headGroup.add(box(0.24, 0.24, 0.03, 0, 0, 0.14, darkSteel));
+      // ПЕРЕДНИЙ УДАРНЫЙ БОЁК (-Z, направлен вперед к цели)
+      headGroup.add(box(0.22, 0.22, 0.10, 0, 0, -0.18, steel));
+      headGroup.add(box(0.24, 0.24, 0.03, 0, 0, -0.14, darkSteel));
       // Вафельные насечки/зубья на ударной грани бойка
       for (let ix = -0.06; ix <= 0.06; ix += 0.06) {
         for (let iy = -0.06; iy <= 0.06; iy += 0.06) {
-          const tooth = box(0.032, 0.032, 0.032, ix, iy, 0.24, edgeSteel);
+          const tooth = box(0.032, 0.032, 0.032, ix, iy, -0.24, edgeSteel);
           headGroup.add(tooth);
         }
       }
 
-      // ЗАДНИЙ КЛЕВЕЦ-ШИП (-Z, бронебойный клюв)
-      headGroup.add(box(0.12, 0.12, 0.10, 0, 0, -0.18, darkSteel));
-      headGroup.add(box(0.08, 0.08, 0.12, 0, -0.01, -0.28, steel));
-      headGroup.add(box(0.04, 0.04, 0.10, 0, -0.02, -0.38, edgeSteel));
+      // ЗАДНИЙ КЛЕВЕЦ-ШИП (+Z, бронебойный клюв смотрит назад к плечу)
+      headGroup.add(box(0.12, 0.12, 0.10, 0, 0, 0.18, darkSteel));
+      headGroup.add(box(0.08, 0.08, 0.12, 0, -0.01, 0.28, steel));
+      headGroup.add(box(0.04, 0.04, 0.10, 0, -0.02, 0.38, edgeSteel));
 
       // ВЕРХНИЙ ОСАДНЫЙ ШИП-КОРОНА (+Y)
       headGroup.add(box(0.08, 0.14, 0.08, 0, 0.18, 0, darkSteel));
@@ -956,50 +956,50 @@ let cd = 0,
 
   function animateHammerSwing(p) {
     if (p < 0.26) {
-      // Фаза 1: Взвод за плечо вверх-назад (преодоление инерции покоя тяжелого бойка)
+      // Фаза 1: Взвод за правое плечо вверх-назад (преодоление инерции покоя)
       const t = p / 0.26;
       const k = t * t * (3 - 2 * t);
       hand.position.set(
         HAMMER_REST_POS.x + 0.04 * k,
-        HAMMER_REST_POS.y + 0.18 * k,
-        HAMMER_REST_POS.z + 0.06 * k
+        HAMMER_REST_POS.y + 0.16 * k,
+        HAMMER_REST_POS.z + 0.08 * k
       );
       hand.rotation.set(
-        HAMMER_REST_ROT.x - 0.45 * k,
-        HAMMER_REST_ROT.y - 0.15 * k,
-        HAMMER_REST_ROT.z + 0.12 * k
+        HAMMER_REST_ROT.x + 0.22 * k,
+        HAMMER_REST_ROT.y + 0.15 * k,
+        HAMMER_REST_ROT.z + 0.10 * k
       );
       camImpulseX = -0.015 * k;
       if (hammerAnim.coreMat) hammerAnim.coreMat.emissiveIntensity = 2.2 + 1.2 * k;
     } else if (p < 0.50) {
-      // Фаза 2: Обрушение массы сверху вниз через центр (падающая траектория рычага)
+      // Фаза 2: Обрушение массы вперед и вниз (боёк спереди со свистом летит через прицел)
       const t = (p - 0.26) / 0.24;
-      const k = Math.pow(t, 2.2); // Ускорение свободного падения тяжелой массы
+      const k = Math.pow(t, 2.2); // Ускорение падающей тяжести
       hand.position.set(
-        (HAMMER_REST_POS.x + 0.04) - 0.28 * k,
-        (HAMMER_REST_POS.y + 0.18) - 0.42 * k,
-        (HAMMER_REST_POS.z + 0.06) - 0.16 * k
+        (HAMMER_REST_POS.x + 0.04) - 0.26 * k,
+        (HAMMER_REST_POS.y + 0.16) - 0.30 * k,
+        (HAMMER_REST_POS.z + 0.08) - 0.12 * k
       );
       hand.rotation.set(
-        (HAMMER_REST_ROT.x - 0.45) + 2.05 * k,
-        (HAMMER_REST_ROT.y - 0.15) - 0.28 * k,
-        (HAMMER_REST_ROT.z + 0.12) + 0.24 * k
+        (HAMMER_REST_ROT.x + 0.22) - 1.29 * k,
+        (HAMMER_REST_ROT.y + 0.15) + 0.25 * k,
+        (HAMMER_REST_ROT.z + 0.10) + 0.10 * k
       );
     } else if (p < 0.65) {
-      // Фаза 3: Жесткий импакт в пол/цель (боёк внизу перед ногами, остановка)
-      hand.position.set(0.02, -0.44, -0.56);
-      hand.rotation.set(1.08, -0.05, 0.0);
+      // Фаза 3: Жесткий импакт бойком плашмя в землю/цель прямо перед ногами
+      hand.position.set(0.02, -0.42, -0.48);
+      hand.rotation.set(-1.42, -0.05, 0.0);
     } else {
-      // Фаза 4: Инерционный отрыв от земли и подъем тяжелого молота обратно на плечо
+      // Фаза 4: Инерционный отрыв от земли и плавный подъем обратно на плечо
       const t = (p - 0.65) / 0.35;
       const k = 1 - t * (2 - t);
       hand.position.set(
         HAMMER_REST_POS.x * (1 - k) + 0.02 * k,
-        HAMMER_REST_POS.y * (1 - k) - 0.44 * k,
-        HAMMER_REST_POS.z * (1 - k) - 0.56 * k
+        HAMMER_REST_POS.y * (1 - k) - 0.42 * k,
+        HAMMER_REST_POS.z * (1 - k) - 0.48 * k
       );
       hand.rotation.set(
-        HAMMER_REST_ROT.x * (1 - k) + 1.08 * k,
+        HAMMER_REST_ROT.x * (1 - k) - 1.42 * k,
         HAMMER_REST_ROT.y * (1 - k) - 0.05 * k,
         HAMMER_REST_ROT.z * (1 - k)
       );
@@ -1014,11 +1014,11 @@ let cd = 0,
       const k = t * t * (3 - 2 * t);
       hand.position.set(
         HAMMER_REST_POS.x * (1 - k),
-        HAMMER_REST_POS.y + 0.62 * k,
-        HAMMER_REST_POS.z + 0.10 * k
+        HAMMER_REST_POS.y + 0.58 * k,
+        HAMMER_REST_POS.z + 0.08 * k
       );
       hand.rotation.set(
-        HAMMER_REST_ROT.x - 0.95 * k,
+        HAMMER_REST_ROT.x + 0.55 * k,
         HAMMER_REST_ROT.y * (1 - k),
         HAMMER_REST_ROT.z * (1 - k)
       );
@@ -1031,11 +1031,11 @@ let cd = 0,
       const k = t * t;
       hand.position.set(
         0,
-        (HAMMER_REST_POS.y + 0.62) - 0.88 * k,
-        (HAMMER_REST_POS.z + 0.10) - 0.22 * k
+        (HAMMER_REST_POS.y + 0.58) - 0.82 * k,
+        (HAMMER_REST_POS.z + 0.08) - 0.18 * k
       );
       hand.rotation.set(
-        (HAMMER_REST_ROT.x - 0.95) + 2.50 * k,
+        (HAMMER_REST_ROT.x + 0.55) - 1.62 * k,
         0,
         0
       );
@@ -1046,11 +1046,11 @@ let cd = 0,
       const bounce = Math.sin(t * Math.PI) * 0.04;
       hand.position.set(
         HAMMER_REST_POS.x * (1 - k),
-        HAMMER_REST_POS.y * (1 - k) - 0.26 * k + bounce,
-        HAMMER_REST_POS.z * (1 - k) - 0.12 * k
+        HAMMER_REST_POS.y * (1 - k) - 0.24 * k + bounce,
+        HAMMER_REST_POS.z * (1 - k) - 0.10 * k
       );
       hand.rotation.set(
-        HAMMER_REST_ROT.x * (1 - k) + 1.20 * k,
+        HAMMER_REST_ROT.x * (1 - k) - 1.07 * k,
         HAMMER_REST_ROT.y * (1 - k),
         HAMMER_REST_ROT.z * (1 - k)
       );

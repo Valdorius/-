@@ -4,8 +4,8 @@
 // applyDamage(id,dmg,meta) and damage(...) alias returning {killed,xp}
 
 import * as THREE from "three";
-import { attachVOXSkin } from "../models/vox_registry.js?v=20261030_06";
-import { createPortals } from "./portals.js?v=20261030_06";
+import { attachVOXSkin } from "../models/vox_registry.js?v=20261030_07";
+import { createPortals } from "./portals.js?v=20261030_07";
 
 export function createEnemies(ctx) {
   const scene = ctx.scene || ctx.engine?.scene || ctx.engine?.getScene?.();

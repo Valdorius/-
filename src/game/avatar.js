@@ -208,10 +208,10 @@ export function createVoxelAvatar({
       wpart({ sx: 0.08, sy: 0.45, sz: 0.02, x: 0, y: 0.65, z: -0.035, mat: matWeaponDark });
       // Massive steel hammer head
       wpart({ sx: 0.26, sy: 0.26, sz: 0.36, x: 0, y: 0.88, z: 0, mat: matWeaponDark, name: "HeadCore" });
-      // Crushing face front
-      wpart({ sx: 0.24, sy: 0.24, sz: 0.10, x: 0, y: 0.88, z: 0.22, mat: matWeaponSteel, name: "Face" });
-      // Rear armor-piercing spike
-      wpart({ sx: 0.12, sy: 0.12, sz: 0.18, x: 0, y: 0.88, z: -0.26, mat: matWeaponSteel, name: "Spike" });
+      // Crushing face front (-Z, toward enemies)
+      wpart({ sx: 0.24, sy: 0.24, sz: 0.10, x: 0, y: 0.88, z: -0.22, mat: matWeaponSteel, name: "Face" });
+      // Rear armor-piercing spike (+Z, toward shoulder)
+      wpart({ sx: 0.12, sy: 0.12, sz: 0.18, x: 0, y: 0.88, z: 0.26, mat: matWeaponSteel, name: "Spike" });
       // Top siege spike
       wpart({ sx: 0.08, sy: 0.18, sz: 0.08, x: 0, y: 1.08, z: 0, mat: matWeaponSteel, name: "TopSpike" });
       // Glowing Amber Rune Core
