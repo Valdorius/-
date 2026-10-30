@@ -1,16 +1,17 @@
-import { createEngine } from "./core/engine.js?v=20261031_03";
-import { createInput } from "./core/input.js?v=20261031_03";
-import { clamp } from "./core/math.js?v=20261031_03";
-import { createHUD } from "./game/hud.js?v=20261031_03";
-import { createAudio } from "./game/audio.js?v=20261031_03";
-import { createWorld } from "./game/world.js?v=20261031_03";
-import { createPlayer } from "./game/player.js?v=20261031_03";
-import { createWeapons } from "./game/weapons.js?v=20261031_03";
-import { createEnemies } from "./game/enemies.js?v=20261031_03";
-import { createProjectiles } from "./game/projectiles.js?v=20261031_03";
-import { createEffects } from "./game/effects.js?v=20261031_03";
-import { createProgression } from "./game/progression.js?v=20261031_03";
-import { preloadVOXModels } from "./models/vox_registry.js?v=20261031_03";
+import { createEngine } from "./core/engine.js?v=20261031_04";
+import { createInput } from "./core/input.js?v=20261031_04";
+import { clamp } from "./core/math.js?v=20261031_04";
+import { createHUD } from "./game/hud.js?v=20261031_04";
+import { createAudio } from "./game/audio.js?v=20261031_04";
+import { createWorld } from "./game/world.js?v=20261031_04";
+import { createSkyTitan } from "./game/sky_titan.js?v=20261031_04";
+import { createPlayer } from "./game/player.js?v=20261031_04";
+import { createWeapons } from "./game/weapons.js?v=20261031_04";
+import { createEnemies } from "./game/enemies.js?v=20261031_04";
+import { createProjectiles } from "./game/projectiles.js?v=20261031_04";
+import { createEffects } from "./game/effects.js?v=20261031_04";
+import { createProgression } from "./game/progression.js?v=20261031_04";
+import { preloadVOXModels } from "./models/vox_registry.js?v=20261031_04";
 
 // Kick off parallel preload of all VOX models on boot
 preloadVOXModels();
@@ -23,6 +24,7 @@ const hud = createHUD();
 const audio = createAudio({ buttonId:"musicBtn", url:"./assets/music.ogg" });
 
 const world = createWorld(engine);
+const skyTitan = createSkyTitan({ engine, world });
 const fx = createEffects(engine);
 
 const progression = {}; // shared ref for stats/perks (filled by createProgression)
@@ -112,7 +114,7 @@ function buildPick(){
   }
 }
 buildPick();
-window.__game = { enemies, player, weapons, engine, input, world };
+window.__game = { enemies, player, weapons, engine, input, world, skyTitan };
 
 // Quick weapon hotkeys per class
 window.addEventListener("keydown", (e) => {
@@ -200,6 +202,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
 function update(dt, now){
   input.tick();
   audio?.tick?.(dt);
+  skyTitan?.tick?.(dt);
 
   // time dilation (boss kill punch)
   if (timeScaleT > 0){
