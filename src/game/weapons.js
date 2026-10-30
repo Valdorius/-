@@ -54,6 +54,16 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
   const BOMBARD_REST_POS = new THREE.Vector3(0.18, -0.22, -0.38);
   const BOMBARD_REST_ROT = new THREE.Euler(0.08, -0.06, 0.03);
 
+  // Боевые позиции для магического арсенала Бездны
+  const STAFF_REST_POS = new THREE.Vector3(0.24, -0.28, -0.42);
+  const STAFF_REST_ROT = new THREE.Euler(0.20, -0.15, 0.08);
+
+  const SCEPTER_REST_POS = new THREE.Vector3(0.22, -0.25, -0.38);
+  const SCEPTER_REST_ROT = new THREE.Euler(0.22, -0.18, 0.06);
+
+  const GRIMOIRE_REST_POS = new THREE.Vector3(0.06, -0.25, -0.38);
+  const GRIMOIRE_REST_ROT = new THREE.Euler(0.32, -0.10, 0.04);
+
   // Первоклассный риг воксельных рук от первого лица
   const fpsArms = createFpsArms({ camera });
   fpsArms.setVisible(false);
@@ -140,6 +150,27 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
     runeMats: []
   };
 
+  // refs for scepter viewmodel animation
+  const scepterAnim = {
+    gripRight: null,
+    muzzle: null,
+    prism: null,
+    prismMat: null,
+    clawGroup: null,
+    claws: [],
+    runeMats: []
+  };
+
+  // refs for grimoire viewmodel animation
+  const grimoireAnim = {
+    gripRight: null,
+    gripLeft: null,
+    talisman: null,
+    pagesL: null,
+    pagesR: null,
+    runeMats: []
+  };
+
   function getStats(){
     return (progression && progression.stats) ? progression.stats : null;
   }
@@ -217,6 +248,23 @@ let cd = 0,
   let bombardCanisterCd = 0;
   const BOMBARD_CANISTER_DUR = 0.44;
 
+  // mage combat & spell state
+  let mageCastT = 0;
+  let mageCastMax = 0.55;
+  let staffVortexCd = 0;
+  let scepterBeamActive = false;
+  let scepterBeamTimer = 0;
+  let scepterNovaT = 0;
+  let scepterNovaCd = 0;
+  let grimoireDomeCd = 0;
+  let grimoireCastT = 0;
+
+  // Persistent active spells collections
+  const activeVortices = [];
+  const activePillars = [];
+  const activeMeteors = [];
+  const activeDomes = [];
+
   // Circular SVG charge HUD ring around crosshair
   const ringEl = typeof document !== "undefined" ? document.getElementById("chargeRing") : null;
   const circleEl = typeof document !== "undefined" ? document.getElementById("chargeCircle") : null;
@@ -282,15 +330,36 @@ let cd = 0,
       speed: 20,
       splash: 3.4
     },
-    // Посох: медленный большой взрывной шар (чтобы читалось и было "опасно")
-    staff: { name: "Посох", hint: "Магия. Медленная взрывная сфера с высоким уроном.", dmg: 34, rate: 1.35, speed: 9.0, splash: 2.20 }
+    // Посох Бездны: каст по земле Столпа Бездны и Гравитационная воронка
+    staff: {
+      name: "Посох Бездны",
+      hint: "Магия. Удерживай ЛКМ — выбор зоны и каст Столпа Бездны (взмывающий гейзер). ПКМ — гравитационная воронка (стягивает врагов в точку на 4с).",
+      dmg: 95,
+      splash: 3.6,
+      castTime: 0.55
+    },
+    // Астральный скипетр: непрерывный луч дезинтеграции и импульс аннигиляции
+    scepter: {
+      name: "Астральный скипетр",
+      hint: "Концентрация. Удерживай ЛКМ — непрерывный луч дезинтеграции (быстро плавит врагов). ПКМ — взрывная перегрузка фокуса (отбрасывание толпы).",
+      dmgPerSec: 160,
+      range: 28
+    },
+    // Гримуар Катастроф: падение метеорита и купол искажения времени
+    grimoire: {
+      name: "Гримуар Катастроф",
+      hint: "Ритуалы. Удерживай ЛКМ — глубокий каст Звездного Метеорита (гигантский кратер). ПКМ — Купол искажения времени (замедление врагов на 70%).",
+      dmg: 140,
+      splash: 5.5,
+      castTime: 0.85
+    }
   };
 
   let currentClass = "knight";
   const classWeapons = {
     knight: ["hammer", "sword", "spear"],
     ranger: ["bow", "daggers", "bombard"],
-    mage:   ["staff"]
+    mage:   ["staff", "scepter", "grimoire"]
   };
 
   function setClass(c) {
@@ -491,6 +560,430 @@ let cd = 0,
     g.position.set(0, 0, 0);
 
     return { root: g, gripAnchor, runeMat: rune };
+  }
+
+  // ===== МЕХАНИКА КАСТА И ПРИЦЕЛИВАНИЯ МАГА БЕЗДНЫ (GROUND TARGETING & SPELLS) =====
+
+  // 1. Рунический проекционный круг на полу (Ground Targeting Reticle)
+  const groundReticle = (function createGroundReticle() {
+    const root = new THREE.Group();
+    root.name = "GroundReticleRoot";
+    root.visible = false;
+    engine.scene.add(root);
+
+    const runeMat = new THREE.MeshBasicMaterial({
+      color: 0xff2387,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+
+    const innerMat = new THREE.MeshBasicMaterial({
+      color: 0xff70be,
+      transparent: true,
+      opacity: 0.65,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+
+    const discMat = new THREE.MeshBasicMaterial({
+      color: 0x4a0a38,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+
+    const outerRing = new THREE.Mesh(new THREE.RingGeometry(3.4, 3.6, 44), runeMat);
+    outerRing.rotation.x = -Math.PI / 2;
+
+    const midRing = new THREE.Mesh(new THREE.RingGeometry(1.6, 1.74, 32), innerMat);
+    midRing.rotation.x = -Math.PI / 2;
+
+    const centerDisc = new THREE.Mesh(new THREE.CircleGeometry(3.4, 36), discMat);
+    centerDisc.rotation.x = -Math.PI / 2;
+    centerDisc.position.y = -0.005;
+
+    const pointers = new THREE.Group();
+    for (let i = 0; i < 4; i++) {
+      const ang = (i / 4) * Math.PI * 2;
+      const spike = box(0.12, 0.02, 0.60, Math.cos(ang) * 3.5, 0.01, Math.sin(ang) * 3.5, runeMat);
+      spike.rotation.y = -ang + Math.PI / 2;
+      pointers.add(spike);
+    }
+
+    root.add(outerRing, midRing, centerDisc, pointers);
+    let curR = 3.6;
+
+    return {
+      root,
+      show(pos, radius = 3.6, color = 0xff2387, progress = 0) {
+        root.visible = true;
+        root.position.set(pos.x, 0.03, pos.z);
+        if (Math.abs(curR - radius) > 0.05) {
+          curR = radius;
+          const s = radius / 3.6;
+          root.scale.set(s, 1, s);
+        }
+        runeMat.color.setHex(color);
+        innerMat.color.setHex(color);
+        outerRing.rotation.z += 0.03 * (1.0 + progress * 2.5);
+        midRing.rotation.z -= 0.05 * (1.0 + progress * 3.0);
+        pointers.rotation.y += 0.03 * (1.0 + progress * 2.5);
+        runeMat.opacity = 0.65 + 0.35 * progress;
+      },
+      hide() {
+        root.visible = false;
+      }
+    };
+  })();
+
+  // 2. Непрерывный лазерный луч дезинтеграции (Sustained Void Beam)
+  const voidBeam = (function createVoidBeam() {
+    const beamG = new THREE.Group();
+    beamG.name = "SustainedVoidBeam";
+    beamG.visible = false;
+    engine.scene.add(beamG);
+
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xff2387,
+      transparent: true,
+      opacity: 0.70,
+      depthWrite: false
+    });
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false
+    });
+
+    const outer = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1.0, 8, 1, true), beamMat);
+    outer.rotation.x = Math.PI / 2;
+    const inner = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.0, 8, 1, true), coreMat);
+    inner.rotation.x = Math.PI / 2;
+
+    beamG.add(outer, inner);
+
+    return {
+      group: beamG,
+      outer,
+      inner,
+      beamMat,
+      coreMat,
+      update(startPos, endPos) {
+        beamG.visible = true;
+        const toEnd = endPos.clone().sub(startPos);
+        const len = toEnd.length();
+        if (len < 0.1) return;
+        const mid = startPos.clone().addScaledVector(toEnd, 0.5);
+        beamG.position.copy(mid);
+        beamG.lookAt(endPos);
+        outer.scale.set(1, 1, len);
+        inner.scale.set(1, 1, len);
+        beamMat.opacity = 0.55 + 0.40 * Math.random();
+      },
+      hide() {
+        beamG.visible = false;
+      }
+    };
+  })();
+
+  // 3. Вычисление точки на полу под прицелом (Raycast to Floor)
+  const _groundRayPos = new THREE.Vector3();
+  const _groundRayDir = new THREE.Vector3();
+  function getGroundTarget(maxDist = 32) {
+    camera.getWorldPosition(_groundRayPos);
+    camera.getWorldDirection(_groundRayDir).normalize();
+
+    if (_groundRayDir.y < -0.015) {
+      const t = -_groundRayPos.y / _groundRayDir.y;
+      if (t > 0 && t <= maxDist) {
+        const x = _groundRayPos.x + _groundRayDir.x * t;
+        const z = _groundRayPos.z + _groundRayDir.z * t;
+        return new THREE.Vector3(x, 0.03, z);
+      }
+    }
+    const clampedDist = Math.min(20, maxDist);
+    const len = Math.hypot(_groundRayDir.x, _groundRayDir.z) || 1;
+    return new THREE.Vector3(
+      _groundRayPos.x + (_groundRayDir.x / len) * clampedDist,
+      0.03,
+      _groundRayPos.z + (_groundRayDir.z / len) * clampedDist
+    );
+  }
+
+  // 4. Призыв Столпа Бездны (Abyssal Geyser Pillar)
+  function spawnAbyssalPillar(pos) {
+    const pG = new THREE.Group();
+    pG.position.set(pos.x, 0, pos.z);
+
+    const colGeo = new THREE.CylinderGeometry(3.5, 3.8, 12, 24, 1, true);
+    const colMat = new THREE.MeshBasicMaterial({
+      color: 0xff2387,
+      transparent: true,
+      opacity: 0.80,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const colMesh = new THREE.Mesh(colGeo, colMat);
+    colMesh.position.y = 6.0;
+
+    const coreGeo = new THREE.CylinderGeometry(1.6, 1.8, 12, 16, 1, true);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    coreMesh.position.y = 6.0;
+
+    pG.add(colMesh, coreMesh);
+    engine.scene.add(pG);
+
+    activePillars.push({ group: pG, colMesh, coreMesh, colMat, coreMat, t: 0.45, t0: 0.45, pos: pos.clone() });
+
+    // Урон и подбрасывание врагов
+    fx?.addShockwave?.(pos, 3.8, 0xff2387);
+    fx?.addHit?.(pos, "bomb", 2.6);
+
+    const dmgMul = (getStats()?.damageMul ?? 1) * (getStats()?.arenaDamageMul ?? 1);
+    if (lastEnemiesRef && typeof lastEnemiesRef.forEachInRadius === "function") {
+      lastEnemiesRef.forEachInRadius(pos, 3.8, (e) => {
+        if (!e) return;
+        const ep = e.pos || e.root?.position || pos;
+        const toCenter = new THREE.Vector3(ep.x - pos.x, 0, ep.z - pos.z);
+        if (toCenter.lengthSq() < 1e-4) toCenter.set(0, 0, 1);
+        else toCenter.normalize();
+
+        if (e.root) e.root.position.y += 1.8;
+        if (typeof lastEnemiesRef.applyDamage === "function") {
+          const dealt = lastEnemiesRef.applyDamage(e.id, 95 * dmgMul, {
+            knockback: 3.5,
+            knockDir: toCenter,
+            stun: 0.65,
+            kind: "spell",
+            point: ep
+          });
+          if (dealt && dealt.killed && progression) {
+            progression.onKill?.(dealt.xp);
+          }
+        }
+      });
+    }
+  }
+
+  // 5. Призыв Гравитационной Воронки (Singularity Vortex)
+  function spawnSingularityVortex(pos) {
+    const vG = new THREE.Group();
+    vG.position.set(pos.x, 0.03, pos.z);
+
+    const disc = new THREE.Mesh(new THREE.RingGeometry(0.1, 5.0, 36), new THREE.MeshBasicMaterial({
+      color: 0x24083a, transparent: true, opacity: 0.70, depthWrite: false, side: THREE.DoubleSide
+    }));
+    disc.rotation.x = -Math.PI / 2;
+
+    const spiral = new THREE.Mesh(new THREE.RingGeometry(0.2, 3.4, 24), new THREE.MeshBasicMaterial({
+      color: 0xff2387, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide
+    }));
+    spiral.rotation.x = -Math.PI / 2;
+
+    const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 12), new THREE.MeshStandardMaterial({
+      color: 0x08040d, roughness: 0.9, emissive: 0x6a0044, emissiveIntensity: 1.4
+    }));
+    sphere.position.y = 0.45;
+
+    vG.add(disc, spiral, sphere);
+    engine.scene.add(vG);
+
+    fx?.addShockwave?.(pos, 3.0, 0x9922cc);
+
+    activeVortices.push({
+      group: vG,
+      spiral,
+      sphere,
+      pos: pos.clone(),
+      t: 4.0,
+      t0: 4.0,
+      tickTimer: 0
+    });
+  }
+
+  // 6. Призыв Звездного Метеорита (Astral Meteor Drop)
+  function spawnAstralMeteor(pos) {
+    const meteorMesh = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.75, 0),
+      new THREE.MeshStandardMaterial({
+        color: 0x24102c,
+        emissive: 0xff2387,
+        emissiveIntensity: 3.2,
+        roughness: 0.35,
+        metalness: 0.65
+      })
+    );
+    meteorMesh.position.set(pos.x, 22, pos.z);
+    engine.scene.add(meteorMesh);
+
+    activeMeteors.push({
+      mesh: meteorMesh,
+      pos: meteorMesh.position,
+      targetPos: pos.clone(),
+      speed: 48
+    });
+  }
+
+  // 7. Призыв Купола Замедления Времени (Chrono Dilation Dome)
+  function spawnChronoDome(pos) {
+    const domeGeo = new THREE.SphereGeometry(7.0, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
+    const domeMat = new THREE.MeshBasicMaterial({
+      color: 0x9933ff,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const domeMesh = new THREE.Mesh(domeGeo, domeMat);
+    domeMesh.position.set(pos.x, 0.02, pos.z);
+    engine.scene.add(domeMesh);
+
+    fx?.addShockwave?.(pos, 4.0, 0x9933ff);
+
+    activeDomes.push({
+      mesh: domeMesh,
+      mat: domeMat,
+      pos: pos.clone(),
+      t: 5.0,
+      t0: 5.0
+    });
+  }
+
+  // 8. Обновление всех активных заклинаний Бездны в мире каждый кадр
+  function tickActiveSpells(dt) {
+    const dmgMul = (getStats()?.damageMul ?? 1) * (getStats()?.arenaDamageMul ?? 1);
+
+    // Воронки (Vortices): притягивают и наносят тикающий урон
+    for (let i = activeVortices.length - 1; i >= 0; i--) {
+      const v = activeVortices[i];
+      v.t -= dt;
+      v.spiral.rotation.z += dt * 4.5;
+      v.sphere.rotation.y += dt * 3.0;
+
+      if (lastEnemiesRef && typeof lastEnemiesRef.forEachInRadius === "function") {
+        lastEnemiesRef.forEachInRadius(v.pos, 6.5, (e) => {
+          if (!e) return;
+          const ep = e.pos || e.root?.position;
+          if (!ep) return;
+          const toCenter = new THREE.Vector3(v.pos.x - ep.x, 0, v.pos.z - ep.z);
+          const d = toCenter.length();
+          if (d > 0.35) {
+            toCenter.normalize();
+            ep.x += toCenter.x * dt * 4.0;
+            ep.z += toCenter.z * dt * 4.0;
+          }
+          e.slowT = Math.max(e.slowT || 0, 0.4);
+          e.slowMul = 0.45;
+        });
+      }
+
+      v.tickTimer += dt;
+      if (v.tickTimer >= 0.35) {
+        v.tickTimer -= 0.35;
+        if (lastEnemiesRef && typeof lastEnemiesRef.forEachInRadius === "function") {
+          lastEnemiesRef.forEachInRadius(v.pos, 5.0, (e) => {
+            if (!e) return;
+            if (typeof lastEnemiesRef.applyDamage === "function") {
+              const dealt = lastEnemiesRef.applyDamage(e.id, 14 * dmgMul, {
+                kind: "spell",
+                stagger: 0.1,
+                point: v.pos
+              });
+              if (dealt && dealt.killed && progression) progression.onKill?.(dealt.xp);
+            }
+          });
+        }
+      }
+
+      if (v.t <= 0) {
+        engine.scene.remove(v.group);
+        activeVortices.splice(i, 1);
+      }
+    }
+
+    // Столпы (Pillars): расширение и затухание
+    for (let i = activePillars.length - 1; i >= 0; i--) {
+      const p = activePillars[i];
+      p.t -= dt;
+      const k = p.t / p.t0;
+      p.colMat.opacity = 0.80 * k;
+      p.coreMat.opacity = 0.95 * k;
+      p.colMesh.scale.x = 1.0 + (1.0 - k) * 0.25;
+      p.colMesh.scale.z = 1.0 + (1.0 - k) * 0.25;
+      if (p.t <= 0) {
+        engine.scene.remove(p.group);
+        activePillars.splice(i, 1);
+      }
+    }
+
+    // Метеориты (Meteors): полет вниз и детонация
+    for (let i = activeMeteors.length - 1; i >= 0; i--) {
+      const m = activeMeteors[i];
+      m.pos.y -= m.speed * dt;
+      m.mesh.rotation.x += dt * 8.0;
+      m.mesh.rotation.y += dt * 6.0;
+
+      if (m.pos.y <= 0.3) {
+        engine.scene.remove(m.mesh);
+        activeMeteors.splice(i, 1);
+
+        fx?.addShockwave?.(m.targetPos, 5.2, 0xff2387);
+        fx?.addHit?.(m.targetPos, "bomb", 3.2);
+
+        if (lastEnemiesRef && typeof lastEnemiesRef.forEachInRadius === "function") {
+          lastEnemiesRef.forEachInRadius(m.targetPos, 5.5, (e) => {
+            if (!e) return;
+            const ep = e.pos || e.root?.position || m.targetPos;
+            const toCenter = new THREE.Vector3(ep.x - m.targetPos.x, 0, ep.z - m.targetPos.z);
+            if (toCenter.lengthSq() < 1e-4) toCenter.set(0, 0, 1);
+            else toCenter.normalize();
+
+            if (typeof lastEnemiesRef.applyDamage === "function") {
+              const dealt = lastEnemiesRef.applyDamage(e.id, 140 * dmgMul, {
+                knockback: 6.5,
+                knockDir: toCenter,
+                stun: 0.85,
+                kind: "bomb",
+                point: ep
+              });
+              if (dealt && dealt.killed && progression) progression.onKill?.(dealt.xp);
+            }
+          });
+        }
+      }
+    }
+
+    // Купола (Time Dilation Domes): замедление входящих врагов на 70%
+    for (let i = activeDomes.length - 1; i >= 0; i--) {
+      const d = activeDomes[i];
+      d.t -= dt;
+      d.mat.opacity = 0.22 * (d.t / d.t0);
+
+      if (lastEnemiesRef && typeof lastEnemiesRef.forEachInRadius === "function") {
+        lastEnemiesRef.forEachInRadius(d.pos, 7.0, (e) => {
+          if (!e) return;
+          e.slowT = Math.max(e.slowT || 0, 0.4);
+          e.slowMul = 0.30;
+        });
+      }
+
+      if (d.t <= 0) {
+        engine.scene.remove(d.mesh);
+        activeDomes.splice(i, 1);
+      }
+    }
+  }
   }
 
   function buildModel(w) {
@@ -1092,60 +1585,292 @@ let cd = 0,
       staffAnim.crystal = null;
       staffAnim.crystalMat = null;
       staffAnim.muzzle = null;
+      staffAnim.shards = [];
 
       const g = new THREE.Group();
+      g.name = "VoidStaffViewModel";
 
-      const darkWood = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.90 });
-      const metal2 = new THREE.MeshStandardMaterial({ color: 0xc7ceda, roughness: 0.35, metalness: 0.55 });
+      const darkWood = new THREE.MeshStandardMaterial({ color: 0x221626, roughness: 0.88, metalness: 0.10 });
+      const goldMat = new THREE.MeshStandardMaterial({ color: 0xd8ad3e, roughness: 0.35, metalness: 0.80 });
+      const paleGoldMat = new THREE.MeshStandardMaterial({ color: 0xf8dc6e, roughness: 0.25, metalness: 0.90 });
+      const obsidian = new THREE.MeshStandardMaterial({ color: 0x120c18, roughness: 0.65, metalness: 0.40 });
       const crystalMat = new THREE.MeshStandardMaterial({
-        color: 0xff4455,
-        emissive: 0xff1122,
-        emissiveIntensity: 1.35,
-        roughness: 0.25,
+        color: 0xff2387,
+        emissive: 0xff0066,
+        emissiveIntensity: 2.8,
+        roughness: 0.15,
         metalness: 0.05
       });
+      const shardMat = new THREE.MeshStandardMaterial({
+        color: 0xff66b8,
+        emissive: 0xff2387,
+        emissiveIntensity: 2.5,
+        roughness: 0.20,
+        metalness: 0.10
+      });
 
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.05, 10), darkWood);
-      shaft.position.set(0.02, 0.35, -0.02);
+      // 1. Древко посоха (Dark Starwood)
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.028, 1.25, 10), darkWood);
+      shaft.position.set(0, 0.10, 0);
       g.add(shaft);
 
-      const butt = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.10, 10), metal2);
-      butt.position.set(0.02, -0.17, -0.02);
-      g.add(butt);
-
-      for (let i = 0; i < 3; i++) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.060, 0.010, 8, 18), metal2);
-        ring.rotation.x = Math.PI / 2;
-        ring.position.set(0.02, 0.05 + i * 0.22, -0.02);
-        g.add(ring);
+      // 2. Золотые муфты и кольца с рунами
+      for (const y of [-0.30, -0.05, 0.20, 0.45]) {
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.030, 10), goldMat);
+        ring.position.set(0, y, 0);
+        const runeBand = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.012, 10), crystalMat);
+        runeBand.position.set(0, y, 0);
+        g.add(ring, runeBand);
       }
 
-      const head = new THREE.Mesh(new THREE.CylinderGeometry(0.060, 0.075, 0.16, 10), metal2);
-      head.position.set(0.02, 0.90, -0.02);
-      g.add(head);
+      // 3. Заостренный золотой подток (Spike Butt)
+      const buttCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.030, 0.08, 10), goldMat);
+      buttCollar.position.set(0, -0.52, 0);
+      const buttSpike = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.12, 8), obsidian);
+      buttSpike.position.set(0, -0.60, 0);
+      buttSpike.rotation.x = Math.PI;
+      g.add(buttCollar, buttSpike);
 
-      const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), crystalMat);
-      crystal.position.set(0.02, 1.02, -0.02);
-      g.add(crystal);
+      // 4. Тройная витая корона (Horned Chalice Crown)
+      const crownCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.032, 0.08, 10), goldMat);
+      crownCollar.position.set(0, 0.70, 0);
+      const crownRim = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 8, 16), paleGoldMat);
+      crownRim.position.set(0, 0.74, 0);
+      crownRim.rotation.x = Math.PI / 2;
+      g.add(crownCollar, crownRim);
 
+      for (let i = 0; i < 3; i++) {
+        const ang = (i / 3) * Math.PI * 2;
+        const prongGroup = new THREE.Group();
+        prongGroup.position.set(Math.cos(ang) * 0.055, 0.74, Math.sin(ang) * 0.055);
+        prongGroup.rotation.y = -ang;
+        const p1 = box(0.022, 0.14, 0.022, 0, 0.06, 0.015, goldMat);
+        p1.rotation.x = 0.22;
+        const p2 = box(0.016, 0.12, 0.016, 0, 0.16, -0.012, obsidian);
+        p2.rotation.x = -0.35;
+        const pR = box(0.008, 0.10, 0.008, 0, 0.16, -0.014, crystalMat);
+        pR.rotation.x = -0.35;
+        prongGroup.add(p1, p2, pR);
+        g.add(prongGroup);
+      }
+
+      // 5. Парящий кристалл Бездны (Floating Octahedron Crystal)
+      const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.075, 0), crystalMat);
+      crystal.position.set(0, 0.86, 0);
+      const crystalInner = new THREE.Mesh(new THREE.OctahedronGeometry(0.045, 0), shardMat);
+      crystalInner.position.set(0, 0.86, 0);
+      g.add(crystal, crystalInner);
+
+      // 6. Парящие орбитальные рунические осколки
+      const shardGroup = new THREE.Group();
+      shardGroup.position.set(0, 0.86, 0);
+      for (let i = 0; i < 3; i++) {
+        const ang = (i / 3) * Math.PI * 2;
+        const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.022, 0), shardMat);
+        shard.position.set(Math.cos(ang) * 0.11, (i - 1) * 0.02, Math.sin(ang) * 0.11);
+        shardGroup.add(shard);
+        staffAnim.shards.push(shard);
+      }
+      g.add(shardGroup);
+
+      // Дуло / точка проекции магии
       const muzzle = new THREE.Object3D();
-      muzzle.position.set(0.02, 1.02, -0.18);
+      muzzle.position.set(0, 0.94, -0.08);
       g.add(muzzle);
 
       staffAnim.crystal = crystal;
+      staffAnim.crystalInner = crystalInner;
       staffAnim.crystalMat = crystalMat;
+      staffAnim.shardGroup = shardGroup;
       staffAnim.muzzle = muzzle;
 
-      // Якорь для правой руки от 1-го лица
       staffAnim.gripRight = new THREE.Object3D();
-      staffAnim.gripRight.position.set(0.02, 0.20, -0.02);
+      staffAnim.gripRight.position.set(0, 0.15, 0);
       g.add(staffAnim.gripRight);
 
-      g.scale.set(1.55, 1.55, 1.55);
+      g.scale.set(1.35, 1.35, 1.35);
       model.add(g);
+      model.position.set(0.08, -0.06, 0.04);
+      model.rotation.set(0.08, Math.PI * 0.96, -0.12);
+    }
 
-      model.rotation.set(0.04, Math.PI * 0.98, -0.14);
-      model.position.set(0.16, 0.02, 0.03);
+    if (w === "scepter") {
+      scepterAnim.gripRight = null;
+      scepterAnim.muzzle = null;
+      scepterAnim.prismMat = null;
+      scepterAnim.claws = [];
+      scepterAnim.runeMats = [];
+
+      const g = new THREE.Group();
+      g.name = "AstralScepterViewModel";
+
+      const leatherMat = new THREE.MeshStandardMaterial({ color: 0x321a24, roughness: 0.90, metalness: 0.05 });
+      const goldMat = new THREE.MeshStandardMaterial({ color: 0xd8ad3e, roughness: 0.35, metalness: 0.80 });
+      const paleGoldMat = new THREE.MeshStandardMaterial({ color: 0xf8dc6e, roughness: 0.25, metalness: 0.90 });
+      const obsidian = new THREE.MeshStandardMaterial({ color: 0x140e1c, roughness: 0.60, metalness: 0.45 });
+      const prismMat = new THREE.MeshStandardMaterial({
+        color: 0xff2387,
+        emissive: 0xff0066,
+        emissiveIntensity: 3.2,
+        roughness: 0.12,
+        metalness: 0.05
+      });
+      scepterAnim.prismMat = prismMat;
+      scepterAnim.runeMats.push(prismMat);
+
+      // 1. Рукоять с кожей
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.020, 0.18, 8), leatherMat);
+      grip.position.set(0, -0.12, 0);
+      g.add(grip);
+
+      // 2. Навершие с аметистом
+      const pommel = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.024, 0.04, 8), goldMat);
+      pommel.position.set(0, -0.22, 0);
+      const pommelGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.022, 0), prismMat);
+      pommelGem.position.set(0, -0.25, 0);
+      g.add(pommel, pommelGem);
+
+      // 3. Граненый обсидиановый стержень
+      const rod = box(0.032, 0.28, 0.032, 0, 0.08, 0, obsidian);
+      g.add(rod);
+      for (const y of [0.0, 0.10, 0.20]) {
+        const ring = box(0.038, 0.016, 0.038, 0, y, 0, goldMat);
+        const rune = box(0.040, 0.008, 0.040, 0, y, 0, prismMat);
+        g.add(ring, rune);
+      }
+
+      // 4. Головная фокусирующая муфта
+      const headCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.028, 0.06, 8), goldMat);
+      headCollar.position.set(0, 0.25, 0);
+      g.add(headCollar);
+
+      // 4 золотых когтя вокруг призмы
+      const clawGroup = new THREE.Group();
+      clawGroup.position.set(0, 0.27, 0);
+      for (let i = 0; i < 4; i++) {
+        const ang = (i / 4) * Math.PI * 2;
+        const claw = box(0.012, 0.12, 0.012, Math.cos(ang) * 0.035, 0.05, Math.sin(ang) * 0.035, paleGoldMat);
+        claw.rotation.y = -ang;
+        claw.rotation.x = 0.12;
+        clawGroup.add(claw);
+        scepterAnim.claws.push(claw);
+      }
+      g.add(clawGroup);
+      scepterAnim.clawGroup = clawGroup;
+
+      // 5. Центральная призма и фокусирующая игла
+      const prism = new THREE.Mesh(new THREE.OctahedronGeometry(0.038, 0), prismMat);
+      prism.position.set(0, 0.34, 0);
+      const needle = box(0.008, 0.12, 0.008, 0, 0.42, 0, prismMat);
+      g.add(prism, needle);
+      scepterAnim.prism = prism;
+
+      // Muzzle anchor
+      const muzzle = new THREE.Object3D();
+      muzzle.position.set(0, 0.48, 0);
+      g.add(muzzle);
+      scepterAnim.muzzle = muzzle;
+
+      // Grip anchor
+      const gripRight = new THREE.Object3D();
+      gripRight.position.set(0, -0.12, 0);
+      g.add(gripRight);
+      scepterAnim.gripRight = gripRight;
+
+      g.scale.set(1.4, 1.4, 1.4);
+      model.add(g);
+      model.position.set(0.06, -0.04, 0.02);
+      model.rotation.set(0.12, Math.PI * 0.97, -0.08);
+    }
+
+    if (w === "grimoire") {
+      grimoireAnim.gripRight = null;
+      grimoireAnim.gripLeft = null;
+      grimoireAnim.talisman = null;
+      grimoireAnim.pagesL = null;
+      grimoireAnim.pagesR = null;
+      grimoireAnim.runeMats = [];
+
+      const g = new THREE.Group();
+      g.name = "CataclysmGrimoireViewModel";
+
+      const leatherMat = new THREE.MeshStandardMaterial({ color: 0x301624, roughness: 0.85, metalness: 0.10 });
+      const goldMat = new THREE.MeshStandardMaterial({ color: 0xd8ad3e, roughness: 0.35, metalness: 0.80 });
+      const paperMat = new THREE.MeshStandardMaterial({ color: 0xdfd4bc, roughness: 0.90, metalness: 0.02 });
+      const runeTextMat = new THREE.MeshStandardMaterial({
+        color: 0xff2387,
+        emissive: 0xff0066,
+        emissiveIntensity: 2.6,
+        roughness: 0.20,
+        metalness: 0.05
+      });
+      const obsidian = new THREE.MeshStandardMaterial({ color: 0x120c18, roughness: 0.60, metalness: 0.50 });
+      grimoireAnim.runeMats.push(runeTextMat);
+
+      // 1. Кожаный корешок по центру
+      const spine = box(0.045, 0.30, 0.025, 0, 0, 0.02, goldMat);
+      g.add(spine);
+
+      // 2. Левая и правая обложки
+      const coverL = box(0.18, 0.28, 0.016, -0.10, 0, 0, leatherMat);
+      coverL.rotation.y = -0.28;
+      const coverR = box(0.18, 0.28, 0.016, 0.10, 0, 0, leatherMat);
+      coverR.rotation.y = 0.28;
+      g.add(coverL, coverR);
+
+      // Угловые золотые накладки
+      for (const cx of [-0.17, 0.17]) {
+        for (const cy of [-0.12, 0.12]) {
+          const sign = cx < 0 ? -1 : 1;
+          const corner = box(0.04, 0.04, 0.022, cx, cy, 0.005, goldMat);
+          corner.rotation.y = sign * 0.28;
+          g.add(corner);
+        }
+      }
+
+      // 3. Блоки страниц (пергамент)
+      const pagesL = box(0.16, 0.26, 0.028, -0.09, 0, -0.018, paperMat);
+      pagesL.rotation.y = -0.24;
+      const pagesR = box(0.16, 0.26, 0.028, 0.09, 0, -0.018, paperMat);
+      pagesR.rotation.y = 0.24;
+      g.add(pagesL, pagesR);
+      grimoireAnim.pagesL = pagesL;
+      grimoireAnim.pagesR = pagesR;
+
+      // 4. Светящиеся рунические строки на страницах
+      for (const py of [-0.08, -0.04, 0.0, 0.04, 0.08]) {
+        const lineL = box(0.12, 0.008, 0.004, -0.09, py, -0.034, runeTextMat);
+        lineL.rotation.y = -0.24;
+        const lineR = box(0.12, 0.008, 0.004, 0.09, py, -0.034, runeTextMat);
+        lineR.rotation.y = 0.24;
+        g.add(lineL, lineR);
+      }
+
+      // 5. Парящий талисман Око Бездны
+      const talisman = new THREE.Group();
+      talisman.position.set(0, 0, -0.065);
+      const talisFrame = box(0.06, 0.06, 0.018, 0, 0, 0, goldMat);
+      const talisEye = box(0.038, 0.038, 0.024, 0, 0, 0, runeTextMat);
+      const talisPupil = box(0.012, 0.030, 0.026, 0, 0, 0, obsidian);
+      talisman.add(talisFrame, talisEye, talisPupil);
+      g.add(talisman);
+      grimoireAnim.talisman = talisman;
+
+      // 6. Хваты для обеих рук (IK)
+      const gripLeft = new THREE.Object3D();
+      gripLeft.position.set(-0.06, -0.14, 0.03);
+      g.add(gripLeft);
+      grimoireAnim.gripLeft = gripLeft;
+
+      const gripRight = new THREE.Object3D();
+      gripRight.position.set(0.10, -0.04, -0.08);
+      g.add(gripRight);
+      grimoireAnim.gripRight = gripRight;
+
+      g.scale.set(1.4, 1.4, 1.4);
+      model.add(g);
+      model.position.set(0.02, -0.04, 0.0);
+      model.rotation.set(0.32, Math.PI * 0.98, -0.04);
     }
 
     if (w === "daggers") {
@@ -2586,7 +3311,7 @@ let cd = 0,
       else if (w === "bow") fpsArms.setRuneColor(0x00f0ff);
       else if (w === "daggers") fpsArms.setRuneColor(0x00f0ff);
       else if (w === "bombard") fpsArms.setRuneColor(0xff8822);
-      else if (w === "staff") fpsArms.setRuneColor(0xff4455);
+      else if (w === "staff" || w === "scepter" || w === "grimoire") fpsArms.setRuneColor(0xff2387);
     }
 
     if (w === "hammer") {
@@ -2608,10 +3333,27 @@ let cd = 0,
     } else if (w === "bombard") {
       hand.position.copy(BOMBARD_REST_POS);
       hand.rotation.copy(BOMBARD_REST_ROT);
+    } else if (w === "staff") {
+      hand.position.copy(STAFF_REST_POS);
+      hand.rotation.copy(STAFF_REST_ROT);
+    } else if (w === "scepter") {
+      hand.position.copy(SCEPTER_REST_POS);
+      hand.rotation.copy(SCEPTER_REST_ROT);
+    } else if (w === "grimoire") {
+      hand.position.copy(GRIMOIRE_REST_POS);
+      hand.rotation.copy(GRIMOIRE_REST_ROT);
     } else {
       hand.position.copy(baseHandPos);
       hand.rotation.copy(baseHandRot);
     }
+
+    mageCastT = 0;
+    grimoireCastT = 0;
+    scepterBeamActive = false;
+    scepterBeamTimer = 0;
+    scepterNovaT = 0;
+    voidBeam?.hide();
+    groundReticle?.hide();
 
     // Synchronize 3rd-person avatar representation
     if (player && player.avatar) {
@@ -2639,6 +3381,8 @@ let cd = 0,
     }
 
     if (hammerSlamCd > 0) hammerSlamCd = Math.max(0, hammerSlamCd - dt);
+
+    tickActiveSpells(dt);
 
     const st0 = getStats();
     if (st0 && (st0.spearNextRadiusT || 0) > 0) st0.spearNextRadiusT = Math.max(0, st0.spearNextRadiusT - dt);
@@ -2870,29 +3614,303 @@ let cd = 0,
     }
 
     if (weapon === "staff") {
-      const CAST_DUR = 0.22;
-      if (castT > 0) {
-        castT = Math.max(0, castT - dt);
-        const p = 1 - (castT / CAST_DUR);
+      if (staffVortexCd > 0) staffVortexCd = Math.max(0, staffVortexCd - dt);
 
-        hand.rotation.x = 0.10 - 0.20 * Math.sin(p * Math.PI);
-        hand.rotation.z = -0.10 - 0.18 * Math.sin(p * Math.PI);
-        hand.rotation.y = 0.02 * Math.sin(p * Math.PI);
+      // Continuous crystal & shard idle rotation
+      if (staffAnim?.crystal) {
+        staffAnim.crystal.rotation.y += dt * 2.8;
+        staffAnim.crystal.rotation.z += dt * 1.4;
+      }
+      if (staffAnim?.shardGroup) {
+        staffAnim.shardGroup.rotation.y += dt * 2.2;
+      }
 
-        if (staffAnim?.crystalMat) staffAnim.crystalMat.emissiveIntensity = 1.0 + 1.6 * Math.sin(p * Math.PI);
-        if (staffAnim?.crystal) {
-          staffAnim.crystal.rotation.y += dt * 6.5;
-          staffAnim.crystal.rotation.x += dt * 3.0;
+      // RMB: Singularity Vortex
+      if (rightJustPressed && staffVortexCd <= 0 && cd <= 0) {
+        staffVortexCd = 4.5;
+        cd = 0.40;
+        const target = getGroundTarget(28);
+        spawnSingularityVortex(target);
+        hand.position.z += 0.08;
+        hand.rotation.x -= 0.18;
+      }
+
+      // LMB: Channel Ground Abyssal Pillar
+      const maxCast = 0.45 / (getStats()?.attackSpeedMul ?? 1);
+      if (mouseDown && cd <= 0) {
+        mageCastT = Math.min(maxCast, mageCastT + dt);
+        const progress = mageCastT / maxCast;
+        setChargeRing(progress, "#ff2387");
+
+        const target = getGroundTarget(28);
+        groundReticle.show(target, 3.8, 0xff2387, progress);
+
+        // Staff rises into casting posture and shards spin faster
+        hand.position.set(
+          STAFF_REST_POS.x,
+          STAFF_REST_POS.y + 0.08 * progress,
+          STAFF_REST_POS.z - 0.06 * progress
+        );
+        hand.rotation.set(
+          STAFF_REST_ROT.x + 0.22 * progress,
+          STAFF_REST_ROT.y - 0.10 * progress,
+          STAFF_REST_ROT.z + 0.14 * progress
+        );
+
+        if (staffAnim?.crystalMat) staffAnim.crystalMat.emissiveIntensity = 2.8 + 2.5 * progress;
+        if (staffAnim?.shardGroup) staffAnim.shardGroup.rotation.y += dt * 8.0 * progress;
+
+        player?.avatar?.setCombatAction?.({ weapon: "staff", action: "cast", progress });
+      } else {
+        if (mageCastT > 0) {
+          if (mageCastT >= maxCast * 0.75) {
+            // Full cast: spawn Abyssal Pillar!
+            const target = getGroundTarget(28);
+            spawnAbyssalPillar(target);
+            cd = 0.50;
+            // Slam recoil
+            hand.position.y -= 0.12;
+            hand.rotation.x -= 0.30;
+            camImpulseX = 0.025;
+          }
+          mageCastT = 0;
+          setChargeRing(0);
+          groundReticle.hide();
+          player?.avatar?.setCombatAction?.(null);
+        } else {
+          // Return to rest position smoothly
+          hand.position.lerp(STAFF_REST_POS, Math.min(1, dt * 14));
+          hand.rotation.x = THREE.MathUtils.lerp(hand.rotation.x, STAFF_REST_ROT.x, Math.min(1, dt * 14));
+          hand.rotation.y = THREE.MathUtils.lerp(hand.rotation.y, STAFF_REST_ROT.y, Math.min(1, dt * 14));
+          hand.rotation.z = THREE.MathUtils.lerp(hand.rotation.z, STAFF_REST_ROT.z, Math.min(1, dt * 14));
+          if (staffAnim?.crystalMat) staffAnim.crystalMat.emissiveIntensity = THREE.MathUtils.lerp(staffAnim.crystalMat.emissiveIntensity, 2.8, Math.min(1, dt * 10));
+        }
+      }
+    }
+
+    if (weapon === "scepter") {
+      if (scepterNovaCd > 0) scepterNovaCd = Math.max(0, scepterNovaCd - dt);
+
+      // Continuous prism rotation
+      if (scepterAnim?.prism) {
+        scepterAnim.prism.rotation.y += dt * 3.5;
+        scepterAnim.prism.rotation.x += dt * 1.8;
+      }
+
+      // RMB: Cataclysm Nova
+      if (scepterNovaT > 0) {
+        scepterNovaT -= dt;
+        const p = 1 - scepterNovaT / 0.35;
+        const kick = Math.sin(p * Math.PI);
+        hand.position.set(
+          SCEPTER_REST_POS.x,
+          SCEPTER_REST_POS.y + 0.10 * kick,
+          SCEPTER_REST_POS.z + 0.16 * kick
+        );
+        hand.rotation.set(
+          SCEPTER_REST_ROT.x - 0.35 * kick,
+          SCEPTER_REST_ROT.y + 0.05 * kick,
+          SCEPTER_REST_ROT.z + 0.12 * kick
+        );
+        if (scepterNovaT <= 0) {
+          scepterNovaT = 0;
+          hand.position.copy(SCEPTER_REST_POS);
+          hand.rotation.copy(SCEPTER_REST_ROT);
+        }
+      } else if (rightJustPressed && scepterNovaCd <= 0 && cd <= 0) {
+        scepterNovaCd = 3.2;
+        cd = 0.35;
+        scepterNovaT = 0.35;
+
+        // Fire cone nova
+        const origin = new THREE.Vector3();
+        camera.getWorldPosition(origin);
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir).normalize();
+
+        const blastCenter = origin.clone().addScaledVector(dir, 3.5);
+        fx?.addShockwave?.(blastCenter, 5.5, 0xff2387);
+        fx?.addHit?.(blastCenter, "bomb", 2.5);
+        camImpulseX = 0.035;
+
+        const dmgMul = (getStats()?.damageMul ?? 1) * (getStats()?.arenaDamageMul ?? 1);
+        if (lastEnemiesRef && typeof lastEnemiesRef.forEachInRadius === "function") {
+          lastEnemiesRef.forEachInRadius(origin, 8.5, (e) => {
+            if (!e) return;
+            const ep = e.pos || e.root?.position || origin;
+            const to = ep.clone().sub(origin);
+            const dist = to.length();
+            if (dist < 0.2) return;
+            to.normalize();
+            if (to.dot(dir) < 0.25) return; // ~150 deg forward cone
+
+            if (typeof lastEnemiesRef.applyDamage === "function") {
+              const dealt = lastEnemiesRef.applyDamage(e.id, 75 * dmgMul, {
+                knockback: 6.2,
+                knockDir: to,
+                stun: 0.9,
+                kind: "spell",
+                point: ep
+              });
+              if (dealt?.killed && progression?.onKill) {
+                progression.onKill(dealt.xp || 0);
+              }
+            }
+          });
+        }
+      } else if (mouseDown && cd <= 0) {
+        // LMB: Sustained Void Beam (channeled laser)
+        scepterBeamActive = true;
+        scepterBeamTimer += dt;
+
+        // Firing pose with slight chaotic vibration
+        const time = (performance.now() || 0) * 0.05;
+        const jx = Math.sin(time * 1.7) * 0.003;
+        const jy = Math.cos(time * 2.1) * 0.003;
+        hand.position.set(0.18 + jx, -0.16 + jy, -0.42);
+        hand.rotation.set(0.04, -0.05, 0.02);
+
+        if (scepterAnim?.prismMat) scepterAnim.prismMat.emissiveIntensity = 4.5 + Math.random() * 1.5;
+
+        // Raycast beam
+        const camPos = new THREE.Vector3();
+        const camDir = new THREE.Vector3();
+        camera.getWorldPosition(camPos);
+        camera.getWorldDirection(camDir).normalize();
+
+        let muzzlePos = camPos.clone().addScaledVector(camDir, 0.4);
+        if (scepterAnim?.muzzle) scepterAnim.muzzle.getWorldPosition(muzzlePos);
+
+        const maxRange = 26;
+        let hitPoint = camPos.clone().addScaledVector(camDir, maxRange);
+        let closestDist = maxRange;
+        let hitEnemy = null;
+
+        if (lastEnemiesRef && typeof lastEnemiesRef.forEachInRadius === "function") {
+          lastEnemiesRef.forEachInRadius(camPos, maxRange, (e) => {
+            if (!e) return;
+            const ep = e.pos || e.root?.position;
+            if (!ep) return;
+            const toEnemy = ep.clone().sub(camPos);
+            const projDist = toEnemy.dot(camDir);
+            if (projDist > 0.4 && projDist < closestDist) {
+              const perpDistSq = toEnemy.lengthSq() - projDist * projDist;
+              const enemyR = e.radius || 0.85;
+              if (perpDistSq < enemyR * enemyR) {
+                closestDist = projDist;
+                hitEnemy = e;
+                hitPoint = camPos.clone().addScaledVector(camDir, projDist);
+              }
+            }
+          });
+        }
+
+        voidBeam.update(muzzlePos, hitPoint);
+
+        // Tick damage every 0.10s
+        if (scepterBeamTimer >= 0.10) {
+          scepterBeamTimer -= 0.10;
+          fx?.addImpact?.(hitPoint, 1.2, 0xff2387);
+          fx?.addArcFlash?.(hitPoint, 0xff0066, 0.18, 0.7);
+
+          if (hitEnemy && lastEnemiesRef && typeof lastEnemiesRef.applyDamage === "function") {
+            const dmgMul = (getStats()?.damageMul ?? 1) * (getStats()?.arenaDamageMul ?? 1);
+            const dealt = lastEnemiesRef.applyDamage(hitEnemy.id, 16 * dmgMul, {
+              kind: "spell",
+              point: hitPoint,
+              burn: { dur: 2.0, dps: 8 }
+            });
+            if (dealt?.killed && progression?.onKill) {
+              progression.onKill(dealt.xp || 0);
+            }
+          }
         }
       } else {
-        hand.rotation.copy(baseHandRot);
-        hand.position.copy(baseHandPos);
-        if (staffAnim?.crystalMat) staffAnim.crystalMat.emissiveIntensity = 1.15;
+        if (scepterBeamActive) {
+          scepterBeamActive = false;
+          scepterBeamTimer = 0;
+          voidBeam.hide();
+        }
+        hand.position.lerp(SCEPTER_REST_POS, Math.min(1, dt * 14));
+        hand.rotation.x = THREE.MathUtils.lerp(hand.rotation.x, SCEPTER_REST_ROT.x, Math.min(1, dt * 14));
+        hand.rotation.y = THREE.MathUtils.lerp(hand.rotation.y, SCEPTER_REST_ROT.y, Math.min(1, dt * 14));
+        hand.rotation.z = THREE.MathUtils.lerp(hand.rotation.z, SCEPTER_REST_ROT.z, Math.min(1, dt * 14));
+        if (scepterAnim?.prismMat) scepterAnim.prismMat.emissiveIntensity = THREE.MathUtils.lerp(scepterAnim.prismMat.emissiveIntensity, 3.2, Math.min(1, dt * 10));
+      }
+    }
 
-        if (input.mouse.down && cd <= 0) {
-          cd = 1 / (defs.staff.rate * (getStats()?.staffAttackSpeedMul ?? 1));
-          castT = CAST_DUR;
-          fireStaff();
+    if (weapon === "grimoire") {
+      if (grimoireDomeCd > 0) grimoireDomeCd = Math.max(0, grimoireDomeCd - dt);
+
+      // Idle levitation & breathing
+      const time = (performance.now() || 0) * 0.0025;
+      if (grimoireAnim?.talisman) {
+        grimoireAnim.talisman.position.z = -0.065 + Math.sin(time * 3.5) * 0.006;
+      }
+      if (grimoireAnim?.pagesL && grimoireAnim?.pagesR) {
+        grimoireAnim.pagesL.rotation.y = -0.24 + Math.sin(time * 2.0) * 0.02;
+        grimoireAnim.pagesR.rotation.y = 0.24 - Math.sin(time * 2.0) * 0.02;
+      }
+
+      // RMB: Chrono Dilation Dome
+      if (rightJustPressed && grimoireDomeCd <= 0 && cd <= 0) {
+        grimoireDomeCd = 8.0;
+        cd = 0.45;
+        const target = getGroundTarget(16);
+        spawnChronoDome(target);
+        hand.position.y += 0.06;
+        hand.rotation.x += 0.20;
+      }
+
+      // LMB: Deep Ritual Cast: Astral Meteor Drop
+      const METEOR_CAST_MAX = 0.85 / (getStats()?.attackSpeedMul ?? 1);
+      if (mouseDown && cd <= 0) {
+        grimoireCastT = Math.min(METEOR_CAST_MAX, grimoireCastT + dt);
+        const progress = grimoireCastT / METEOR_CAST_MAX;
+        setChargeRing(progress, "#9933ff");
+
+        const target = getGroundTarget(34);
+        groundReticle.show(target, 5.5, 0x9933ff, progress);
+
+        // Grimoire elevates, opens wider, pages flutter rapidly
+        const flutter = Math.sin((performance.now() || 0) * 0.035) * 0.06 * progress;
+        if (grimoireAnim?.pagesL && grimoireAnim?.pagesR) {
+          grimoireAnim.pagesL.rotation.y = -0.24 - 0.15 * progress + flutter;
+          grimoireAnim.pagesR.rotation.y = 0.24 + 0.15 * progress - flutter;
+        }
+        hand.position.set(
+          GRIMOIRE_REST_POS.x,
+          GRIMOIRE_REST_POS.y + 0.10 * progress,
+          GRIMOIRE_REST_POS.z - 0.05 * progress
+        );
+        hand.rotation.set(
+          GRIMOIRE_REST_ROT.x + 0.18 * progress,
+          GRIMOIRE_REST_ROT.y,
+          GRIMOIRE_REST_ROT.z
+        );
+
+        player?.avatar?.setCombatAction?.({ weapon: "grimoire", action: "cast", progress });
+      } else {
+        if (grimoireCastT > 0) {
+          if (grimoireCastT >= METEOR_CAST_MAX * 0.85) {
+            // Meteor drops!
+            const target = getGroundTarget(34);
+            spawnAstralMeteor(target);
+            cd = 0.90;
+            // Slam reaction
+            hand.position.y -= 0.10;
+            hand.rotation.x -= 0.25;
+            camImpulseX = 0.04;
+          }
+          grimoireCastT = 0;
+          setChargeRing(0);
+          groundReticle.hide();
+          player?.avatar?.setCombatAction?.(null);
+        } else {
+          hand.position.lerp(GRIMOIRE_REST_POS, Math.min(1, dt * 14));
+          hand.rotation.x = THREE.MathUtils.lerp(hand.rotation.x, GRIMOIRE_REST_ROT.x, Math.min(1, dt * 14));
+          hand.rotation.y = THREE.MathUtils.lerp(hand.rotation.y, GRIMOIRE_REST_ROT.y, Math.min(1, dt * 14));
+          hand.rotation.z = THREE.MathUtils.lerp(hand.rotation.z, GRIMOIRE_REST_ROT.z, Math.min(1, dt * 14));
         }
       }
     }
@@ -3168,6 +4186,33 @@ let cd = 0,
         _tmpQuatL.set(0.1, -0.15, 0.05, 0.98).normalize();
 
         fpsArms.update(dt, "staff", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
+      } else if (weapon === "scepter" && scepterAnim.gripRight) {
+        scepterAnim.gripRight.getWorldPosition(_tmpPosR);
+        camera.worldToLocal(_tmpPosR);
+        scepterAnim.gripRight.getWorldQuaternion(_tmpQuatR);
+        _tmpQuatR.premultiply(_camInvQuat);
+
+        const time = (performance.now() || 0) * 0.003;
+        _tmpPosL.set(
+          -0.16 + Math.cos(time * 0.8) * 0.012,
+          -0.22 + Math.sin(time * 1.1) * 0.015,
+          -0.34 + Math.sin(time * 0.6) * 0.015
+        );
+        _tmpQuatL.set(0.12, -0.18, 0.08, 0.98).normalize();
+
+        fpsArms.update(dt, "scepter", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
+      } else if (weapon === "grimoire" && grimoireAnim.gripRight && grimoireAnim.gripLeft) {
+        grimoireAnim.gripRight.getWorldPosition(_tmpPosR);
+        camera.worldToLocal(_tmpPosR);
+        grimoireAnim.gripRight.getWorldQuaternion(_tmpQuatR);
+        _tmpQuatR.premultiply(_camInvQuat);
+
+        grimoireAnim.gripLeft.getWorldPosition(_tmpPosL);
+        camera.worldToLocal(_tmpPosL);
+        grimoireAnim.gripLeft.getWorldQuaternion(_tmpQuatL);
+        _tmpQuatL.premultiply(_camInvQuat);
+
+        fpsArms.update(dt, "grimoire", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
       } else if (weapon === "daggers" && daggersAnim.gripR && daggersAnim.gripL) {
         shieldHand.updateMatrixWorld(true);
 

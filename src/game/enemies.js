@@ -1247,6 +1247,10 @@ function forEachInRadius
       e.burnT = Math.max(e.burnT || 0, meta.burn.dur || 2.0);
       e.burnDps = Math.max(e.burnDps || 0, meta.burn.dps || 6.0);
     }
+    if (meta?.slow && (meta.slow.mul || meta.slow.dur)){
+      e.slowT = Math.max(e.slowT || 0, meta.slow.dur || 2.0);
+      e.slowMul = Math.min(e.slowMul || 1.0, meta.slow.mul || 0.35);
+    }
 
     // Shielder: reduces frontal damage (unless crushed by heavy weapon)
     if (e.kind === "shielder" && e.shieldFrontMul < 1 && meta?.srcPos && !meta?.crushShield){
@@ -1828,6 +1832,10 @@ if (e.burnT > 0){
 
       // move
       let spdMul = (1 + pressure * 0.08) * spMul;
+      if ((e.slowT || 0) > 0) {
+        e.slowT = Math.max(0, e.slowT - dt);
+        spdMul *= (e.slowMul || 0.35);
+      }
       if ((e.aggroT || 0) > 0) {
         e.aggroT = Math.max(0, e.aggroT - dt);
         spdMul *= 1.25;

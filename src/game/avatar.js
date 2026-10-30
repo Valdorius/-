@@ -784,12 +784,30 @@ export function createVoxelAvatar({
       armRRotX = 0.55 + 0.35 * kick * mul;
       armLRotX = 0.65 + 0.45 * kick * mul;
       torsoRotX = -0.15 * kick * mul;
+    } else if (combatAction && (combatAction.weapon === "staff" || combatAction.weapon === "grimoire")) {
+      const p = Math.max(0, Math.min(1, combatAction.progress || 0));
+      const lift = Math.sin(p * Math.PI);
+      armRRotX = 0.65 + 0.65 * lift;
+      armRRotY = -0.20;
+      armLRotX = 0.50 + 0.55 * lift;
+      armLRotY = 0.30;
+      torsoRotX = -0.10 * lift;
     } else if (currentWeaponId === "bombard") {
       // Steady two-handed cradle for heavy bombard cannon
       armRRotX = 0.55;
       armRRotY = -0.20;
       armLRotX = 0.65;
       armLRotY = 0.32;
+    } else if (currentWeaponId === "staff" || currentWeaponId === "scepter") {
+      armRRotX = 0.45;
+      armRRotY = -0.15;
+      armLRotX = 0.35;
+      armLRotY = 0.25;
+    } else if (currentWeaponId === "grimoire") {
+      armRRotX = 0.55;
+      armRRotY = -0.28;
+      armLRotX = 0.55;
+      armLRotY = 0.28;
     } else {
       // Locomotion sway blended into arm swing when moving
       if (state.moving > 0.05) {
