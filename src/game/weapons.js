@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_07";
+import { createFpsArms } from "./fps_arms.js?v=20261030_08";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -22,9 +22,10 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
   const baseHandPos = hand.position.clone();
   const baseHandRot = hand.rotation.clone();
 
-  // Исходная боевая стойка для тяжелого молота: покоится на правом плече
-  const HAMMER_REST_POS = new THREE.Vector3(0.24, -0.28, -0.44);
-  const HAMMER_REST_ROT = new THREE.Euler(-0.35, -0.45, -0.20);
+  // Исходная боевая стойка для тяжелого молота: покоится на правом плече,
+  // развернут внутрь к прицелу (видна грань с руной, боёк смотрит вперед в цель)
+  const HAMMER_REST_POS = new THREE.Vector3(0.24, -0.27, -0.44);
+  const HAMMER_REST_ROT = new THREE.Euler(-0.38, 0.42, -0.24);
 
   // Первоклассный риг воксельных рук от первого лица
   const fpsArms = createFpsArms({ camera });
@@ -966,7 +967,7 @@ let cd = 0,
       );
       hand.rotation.set(
         HAMMER_REST_ROT.x + 0.22 * k,
-        HAMMER_REST_ROT.y + 0.15 * k,
+        HAMMER_REST_ROT.y - 0.12 * k,
         HAMMER_REST_ROT.z + 0.10 * k
       );
       camImpulseX = -0.015 * k;
@@ -975,20 +976,31 @@ let cd = 0,
       // Фаза 2: Обрушение массы вперед и вниз (боёк спереди со свистом летит через прицел)
       const t = (p - 0.26) / 0.24;
       const k = Math.pow(t, 2.2); // Ускорение падающей тяжести
+
+      const startX = HAMMER_REST_POS.x + 0.04;
+      const startY = HAMMER_REST_POS.y + 0.16;
+      const startZ = HAMMER_REST_POS.z + 0.08;
+      const startRx = HAMMER_REST_ROT.x + 0.22;
+      const startRy = HAMMER_REST_ROT.y - 0.12;
+      const startRz = HAMMER_REST_ROT.z + 0.10;
+
+      const targetX = 0.02, targetY = -0.42, targetZ = -0.48;
+      const targetRx = -1.42, targetRy = 0.0, targetRz = 0.0;
+
       hand.position.set(
-        (HAMMER_REST_POS.x + 0.04) - 0.26 * k,
-        (HAMMER_REST_POS.y + 0.16) - 0.30 * k,
-        (HAMMER_REST_POS.z + 0.08) - 0.12 * k
+        startX + (targetX - startX) * k,
+        startY + (targetY - startY) * k,
+        startZ + (targetZ - startZ) * k
       );
       hand.rotation.set(
-        (HAMMER_REST_ROT.x + 0.22) - 1.29 * k,
-        (HAMMER_REST_ROT.y + 0.15) + 0.25 * k,
-        (HAMMER_REST_ROT.z + 0.10) + 0.10 * k
+        startRx + (targetRx - startRx) * k,
+        startRy + (targetRy - startRy) * k,
+        startRz + (targetRz - startRz) * k
       );
     } else if (p < 0.65) {
       // Фаза 3: Жесткий импакт бойком плашмя в землю/цель прямо перед ногами
       hand.position.set(0.02, -0.42, -0.48);
-      hand.rotation.set(-1.42, -0.05, 0.0);
+      hand.rotation.set(-1.42, 0.0, 0.0);
     } else {
       // Фаза 4: Инерционный отрыв от земли и плавный подъем обратно на плечо
       const t = (p - 0.65) / 0.35;
@@ -1000,7 +1012,7 @@ let cd = 0,
       );
       hand.rotation.set(
         HAMMER_REST_ROT.x * (1 - k) - 1.42 * k,
-        HAMMER_REST_ROT.y * (1 - k) - 0.05 * k,
+        HAMMER_REST_ROT.y * (1 - k),
         HAMMER_REST_ROT.z * (1 - k)
       );
       if (hammerAnim.coreMat) hammerAnim.coreMat.emissiveIntensity = 2.2;
@@ -1029,13 +1041,16 @@ let cd = 0,
       // Фаза 2: Сокрушительное обрушение оземь всем весом тела
       const t = (p - 0.48) / 0.14;
       const k = t * t;
+      const startY = HAMMER_REST_POS.y + 0.58;
+      const startZ = HAMMER_REST_POS.z + 0.08;
+      const startRx = HAMMER_REST_ROT.x + 0.55;
       hand.position.set(
         0,
-        (HAMMER_REST_POS.y + 0.58) - 0.82 * k,
-        (HAMMER_REST_POS.z + 0.08) - 0.18 * k
+        startY + (-0.24 - startY) * k,
+        startZ + (-0.10 - startZ) * k
       );
       hand.rotation.set(
-        (HAMMER_REST_ROT.x + 0.55) - 1.62 * k,
+        startRx + (-1.42 - startRx) * k,
         0,
         0
       );
@@ -1050,7 +1065,7 @@ let cd = 0,
         HAMMER_REST_POS.z * (1 - k) - 0.10 * k
       );
       hand.rotation.set(
-        HAMMER_REST_ROT.x * (1 - k) - 1.07 * k,
+        HAMMER_REST_ROT.x * (1 - k) - 1.42 * k,
         HAMMER_REST_ROT.y * (1 - k),
         HAMMER_REST_ROT.z * (1 - k)
       );
