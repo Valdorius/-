@@ -143,6 +143,7 @@ const BOSS_LOOT_BY_WEAPON = {
       hint: "Игра на паузе, пока не выберешь.",
       options: choices.map(p => ({ id:p.id, title:p.title, desc:p.desc })),
       onPick: (i, opt)=>{
+        audio?.playUIClick?.();
         const wpn2 = (weapons && weapons.weapon) ? weapons.weapon : "spear";
         const pool2 = PERKS_BY_WEAPON[wpn2] || PERKS_BY_WEAPON.spear;
         const perk = (choices[i] || pool2.find(x=>x.id===opt.id));
@@ -164,6 +165,7 @@ const BOSS_LOOT_BY_WEAPON = {
       hint: "Выбор необратим.",
       options: choices.map(p => ({ id:p.id, title:p.title, desc:p.desc })),
       onPick: (i,opt)=>{
+        audio?.playUIClick?.();
         const wpn2 = (weapons && weapons.weapon) ? weapons.weapon : "spear";
         const pool2 = BOSS_LOOT_BY_WEAPON[wpn2] || BOSS_LOOT_BY_WEAPON.spear;
         const perk = (choices[i] || pool2.find(x=>x.id===opt.id));
@@ -181,6 +183,7 @@ const BOSS_LOOT_BY_WEAPON = {
     while (xp >= xpNext){
       xp -= xpNext;
       level++;
+      audio?.playLevelUp?.();
       xpNext = Math.floor(50 * Math.pow(1.15, level-1));
 
       // baseline growth (still полезно)

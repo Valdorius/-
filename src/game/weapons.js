@@ -5,7 +5,7 @@ import { createFpsArms } from "./fps_arms.js?v=20261030_16";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
-export function createWeapons({ engine, input, player, world, fx, progression=null }) {
+export function createWeapons({ engine, input, player, world, fx, progression=null, audio=null }) {
   const { camera } = engine;
 
   // === ВАРИАНТ "НОРМАЛЬНЫЙ FPS" ===
@@ -2134,6 +2134,7 @@ let cd = 0,
 
   function fireBow() {
     if (!spawnProjectile) return;
+    audio?.playBowRelease?.();
     const p = clamp(bowCharge / defs.bow.chargeTime, 0.12, 1);
     cd = 0.45 + 0.55 * p;
 
@@ -2196,6 +2197,7 @@ let cd = 0,
 
   function fireStaff() {
     if (!spawnProjectile) return;
+    audio?.playMagicCast?.();
 
     const origin = new THREE.Vector3();
     const camPos = new THREE.Vector3();
@@ -2225,6 +2227,7 @@ let cd = 0,
 
   function fireSingleDagger(handIndex) {
     if (!spawnProjectile) return;
+    audio?.playDaggerThrow?.();
 
     const camPos = new THREE.Vector3();
     const camDir = new THREE.Vector3();
@@ -2264,6 +2267,7 @@ let cd = 0,
 
   function fireDaggerFan() {
     if (!spawnProjectile) return;
+    audio?.playDaggerThrow?.();
 
     const camPos = new THREE.Vector3();
     const camDir = new THREE.Vector3();
@@ -2300,6 +2304,7 @@ let cd = 0,
 
   function fireBombardBomb() {
     if (!spawnProjectile) return;
+    audio?.playExplosion?.(0.85);
 
     const origin = new THREE.Vector3();
     const camPos = new THREE.Vector3();
@@ -2339,6 +2344,7 @@ let cd = 0,
 
   function fireBombardCanister() {
     if (!spawnProjectile) return;
+    audio?.playExplosion?.(1.15);
 
     const origin = new THREE.Vector3();
     const camPos = new THREE.Vector3();
@@ -2555,6 +2561,7 @@ let cd = 0,
   ];
 
   function startSpearSwing(stepIdx) {
+    audio?.playSwing?.(1.2);
     const s = spearCombos[stepIdx] || spearCombos[0];
     comboStep = stepIdx;
     comboNextStep = (stepIdx + 1) % spearCombos.length;
@@ -2590,6 +2597,7 @@ let cd = 0,
   }
 
   function startSpearThrust() {
+    audio?.playSwing?.(1.4);
     spearThrustMax = 0.40;
     spearThrustT = spearThrustMax;
     spearThrustCd = 0.95; // 0.95s CD
@@ -2725,6 +2733,7 @@ let cd = 0,
   }
 
   function startHammerSwing() {
+    audio?.playHeavySwing?.();
     const st = getStats();
     const asMul = st?.hammerAttackSpeedMul ?? 1.0;
     hammerSwingMax = 0.64 / asMul;
@@ -2735,6 +2744,7 @@ let cd = 0,
   }
 
   function startHammerSlam() {
+    audio?.playHeavySwing?.();
     hammerSlamMax = 0.82;
     hammerSlamT = hammerSlamMax;
     hammerSlamCd = 4.0;
@@ -2863,6 +2873,8 @@ let cd = 0,
   }
 
   function executeHammerGroundSlam() {
+    audio?.playExplosion?.(1.2);
+    audio?.playHeavyHit?.();
     camImpulseX = 0.075;
     camImpulseZ = (Math.random() - 0.5) * 0.03;
     const origin = new THREE.Vector3();
@@ -3086,6 +3098,7 @@ let cd = 0,
   ];
 
   function startSwordSwing(step = 0) {
+    audio?.playSwing?.(1.0);
     swordComboStep = step;
     const s = swordCombos[swordComboStep] || swordCombos[0];
     swordSwingMax = s.dur;
@@ -3127,6 +3140,8 @@ let cd = 0,
   }
 
   function startShieldBash() {
+    audio?.playBlock?.();
+    audio?.playHeavyHit?.();
     shieldBashMax = 0.38;
     shieldBashT = shieldBashMax;
     shieldBashHitTriggered = false;
@@ -3299,6 +3314,8 @@ let cd = 0,
   }
 
   function triggerPerfectParry(meta) {
+    audio?.playBlock?.();
+    audio?.playHeavyHit?.();
     camImpulseX = 0.035;
     camImpulseZ = (Math.random() - 0.5) * 0.05;
 
@@ -3336,6 +3353,7 @@ let cd = 0,
   }
 
   function triggerShieldBlock(absorbedDmg) {
+    audio?.playBlock?.();
     camImpulseX = -0.018;
     const origin = new THREE.Vector3();
     camera.getWorldPosition(origin);
@@ -3767,6 +3785,7 @@ let cd = 0,
           if (staffVortexCastT >= VORTEX_CAST_MAX * 0.85) {
             const target = getGroundTarget(28);
             spawnSingularityVortex(target);
+            audio?.playVoidDetonation?.();
             staffVortexCd = 5.0;
             cd = 0.40;
             hand.position.z += 0.12;
@@ -3811,6 +3830,7 @@ let cd = 0,
           if (mageCastT >= maxCast * 0.85) {
             const target = getGroundTarget(28);
             spawnAbyssalPillar(target);
+            audio?.playVoidDetonation?.();
             cd = 0.60;
             hand.position.y -= 0.16;
             hand.rotation.x -= 0.35;
@@ -4059,6 +4079,7 @@ let cd = 0,
           if (grimoireDomeCastT >= DOME_CAST_MAX * 0.85) {
             const target = getGroundTarget(18);
             spawnChronoDome(target);
+            audio?.playVoidDetonation?.();
             grimoireDomeCd = 8.5;
             cd = 0.45;
             hand.position.y += 0.06;
@@ -4105,6 +4126,7 @@ let cd = 0,
             // Meteor drops!
             const target = getGroundTarget(36);
             spawnAstralMeteor(target);
+            audio?.playExplosion?.(1.4);
             cd = 0.95;
             hand.position.y -= 0.14;
             hand.rotation.x -= 0.30;

@@ -15,6 +15,7 @@ export function createEnemies(ctx) {
   const fx = ctx.fx;
   const hud = ctx.hud;
   const progression = ctx.progression;
+  const audio = ctx.audio;
 
   // ---- config
   const BASE_HP = 50;
@@ -1275,6 +1276,7 @@ function forEachInRadius
     if (e.kind === "boss" && typeof e.incomingMul === "number") dmg *= e.incomingMul;
 
     e.hp -= dmg;
+    if (e.hp > 0) audio?.playEnemyHit?.();
 
     // Stun (e.g. Hammer Earthshaker Slam)
     if (meta?.stun && e.kind !== "boss") {

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createVoxelAvatar } from "./avatar.js?v=20261030_16";
 
-export function createPlayer({ engine, input, world, progression=null }) {
+export function createPlayer({ engine, input, world, progression=null, audio=null }) {
   const { camera, scene } = engine;
 
   // --- Camera tuning ---
@@ -68,6 +68,7 @@ export function createPlayer({ engine, input, world, progression=null }) {
       if (progression.shouldBlockDamage()) return;
     }
     hp = Math.max(0, hp - dmg);
+    if (dmg > 0) audio?.playPlayerHurt?.();
   }
 
   function lockFov(){
