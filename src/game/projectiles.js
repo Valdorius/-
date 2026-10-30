@@ -245,11 +245,17 @@ export function createProjectiles({ engine, world, fx }){
         fx?.addHit?.(p.pos, "bomb", 2.2);
         if (enemies && typeof enemies.forEachInRadius === "function") {
           enemies.forEachInRadius(p.pos, p.splash || 3.4, (e) => {
+            if (!e) return;
+            const ep = e.pos || e.root?.position || p.pos;
+            const blastDir = ep ? new THREE.Vector3(ep.x - p.pos.x, 0.35, ep.z - p.pos.z) : (p.dir || new THREE.Vector3(0, 1, 0));
+            if (blastDir.lengthSq() < 1e-4) blastDir.set(0, 1, 0);
+            else blastDir.normalize();
+
             onHit?.({
               enemyId: e.id,
               damage: p.damage * 0.85,
               point: p.pos,
-              dir: new THREE.Vector3(e.position.x - p.pos.x, 0.2, e.position.z - p.pos.z).normalize(),
+              dir: blastDir,
               kind: "bomb",
               splash: true,
               mark: p.mark || null,
@@ -299,7 +305,7 @@ export function createProjectiles({ engine, world, fx }){
       p.mesh.position.copy(p.pos);
 
       if (p.kind === "dagger") {
-        p.mesh.rotateX(dt * 28.0);
+        // Кинжалы летят прямо, без вращения в воздухе
       } else if (p.kind === "bomb") {
         p.mesh.rotateX(dt * 7.0);
       } else if (p.kind === "shrapnel") {

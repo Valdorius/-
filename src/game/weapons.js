@@ -45,10 +45,10 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
   const BOW_REST_ROT = new THREE.Euler(0.15, -0.06, -0.08);
 
   // Боевые позиции для теневых метательных клинков (парный хват)
-  const DAGGER_R_REST_POS = new THREE.Vector3(0.20, -0.22, -0.38);
-  const DAGGER_R_REST_ROT = new THREE.Euler(0.22, -0.30, 0.12);
-  const DAGGER_L_REST_POS = new THREE.Vector3(-0.20, -0.24, -0.38);
-  const DAGGER_L_REST_ROT = new THREE.Euler(0.24, 0.32, -0.14);
+  const DAGGER_R_REST_POS = new THREE.Vector3(0.22, -0.27, -0.40);
+  const DAGGER_R_REST_ROT = new THREE.Euler(0.42, -0.32, 0.18);
+  const DAGGER_L_REST_POS = new THREE.Vector3(-0.22, -0.27, -0.40);
+  const DAGGER_L_REST_ROT = new THREE.Euler(0.42, 0.32, -0.18);
 
   // Боевая позиция для рунной ручной мортиры (тяжелое осадное орудие)
   const BOMBARD_REST_POS = new THREE.Vector3(0.18, -0.22, -0.38);
@@ -417,67 +417,78 @@ let cd = 0,
     const rune = new THREE.MeshStandardMaterial({
       color: 0x00f0ff,
       emissive: 0x00d4ff,
-      emissiveIntensity: 2.2,
+      emissiveIntensity: 2.5,
       roughness: 0.20,
       metalness: 0.10
     });
 
-    // 1. Рукоять с кожаной обмоткой
-    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.020, 0.14, 8), leather);
-    grip.position.set(0, -0.04, 0);
+    const sweep = isLeft ? -1 : 1;
+
+    // 1. Рукоять с кожаной обмоткой (центрирована в точке хвата y=0)
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.018, 0.11, 8), leather);
+    grip.position.set(0, 0, 0);
     g.add(grip);
 
+    // Кожаные витки и темные стальные стяжки
+    for (let y of [-0.035, 0.0, 0.035]) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.003, 6, 12), darkSteel);
+      ring.position.set(0, y, 0);
+      ring.rotation.x = Math.PI / 2;
+      g.add(ring);
+    }
+
     // 2. Серповидное навершие-крюк (Hooked crescent pommel)
-    const pommel = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.010, 6, 12, Math.PI * 1.3), darkSteel);
-    pommel.position.set(0, -0.12, isLeft ? 0.01 : -0.01);
-    pommel.rotation.y = Math.PI / 2;
-    g.add(pommel);
+    const pommelCollar = box(0.036, 0.014, 0.028, 0, -0.060, 0, darkSteel);
+    const pommel = new THREE.Mesh(new THREE.TorusGeometry(0.020, 0.006, 6, 14, Math.PI * 1.4), steel);
+    pommel.position.set(sweep * 0.008, -0.082, 0);
+    pommel.rotation.z = sweep * (Math.PI * 0.25);
+    g.add(pommelCollar, pommel);
 
     // 3. Гарда/больстер с рунным камнем
-    const guard = box(0.065, 0.018, 0.032, 0, 0.04, 0, darkSteel);
-    const guardGem = box(0.016, 0.016, 0.036, 0, 0.04, 0, rune);
+    const guard = box(0.068, 0.015, 0.030, 0, 0.058, 0, darkSteel);
+    const guardGem = box(0.016, 0.017, 0.034, 0, 0.058, 0, rune);
     g.add(guard, guardGem);
 
-    // 4. Изогнутый обсидиановый клинок (Curved obsidian crescent blade)
-    const b1 = box(0.038, 0.11, 0.014, 0, 0.10, 0, obsidian);
-    const b2 = box(0.034, 0.11, 0.012, 0, 0.19, -0.012, obsidian);
-    b2.rotation.x = -0.15;
-    const b3 = box(0.024, 0.11, 0.010, 0, 0.28, -0.034, obsidian);
-    b3.rotation.x = -0.28;
-    const tip = box(0.014, 0.08, 0.008, 0, 0.36, -0.062, steel);
-    tip.rotation.x = -0.36;
+    // 4. Изогнутый обсидиановый клинок (Curved obsidian crescent blade в плоскости X-Y)
+    // Сегмент 1: основание клинка
+    const b1 = box(0.038, 0.075, 0.012, 0, 0.10, 0, obsidian);
+    // Сегмент 2: середина с изгибом внутрь к прицелу
+    const b2 = box(0.032, 0.075, 0.010, sweep * 0.010, 0.165, 0, obsidian);
+    b2.rotation.z = -sweep * 0.14;
+    // Сегмент 3: верхний изгиб клинка
+    const b3 = box(0.024, 0.065, 0.008, sweep * 0.020, 0.225, 0, obsidian);
+    b3.rotation.z = -sweep * 0.28;
+    // Сегмент 4: граненое колющее острие (Needle tip)
+    const tip = box(0.014, 0.055, 0.007, sweep * 0.018, 0.275, 0, steel);
+    tip.rotation.z = -sweep * 0.38;
     g.add(b1, b2, b3, tip);
 
     // Стальное режущее лезвие по внешней кромке
-    const edge1 = box(0.042, 0.11, 0.006, 0, 0.10, 0.008, steel);
-    const edge2 = box(0.036, 0.11, 0.005, 0, 0.19, -0.004, steel);
-    edge2.rotation.x = -0.15;
-    const edge3 = box(0.026, 0.11, 0.004, 0, 0.28, -0.026, steel);
-    edge3.rotation.x = -0.28;
-    g.add(edge1, edge2, edge3);
+    const edge1 = box(0.008, 0.075, 0.007, sweep * 0.020, 0.10, 0, steel);
+    const edge2 = box(0.007, 0.075, 0.006, sweep * 0.028, 0.165, 0, steel);
+    edge2.rotation.z = -sweep * 0.14;
+    const edge3 = box(0.006, 0.065, 0.005, sweep * 0.034, 0.225, 0, steel);
+    edge3.rotation.z = -sweep * 0.28;
+    const edgeTip = box(0.005, 0.055, 0.004, sweep * 0.026, 0.275, 0, steel);
+    edgeTip.rotation.z = -sweep * 0.38;
+    g.add(edge1, edge2, edge3, edgeTip);
 
     // 5. Пылающая руническая жила по центру лезвия
-    const rune1 = box(0.008, 0.10, 0.016, 0, 0.10, 0, rune);
-    const rune2 = box(0.007, 0.10, 0.014, 0, 0.19, -0.012, rune);
-    rune2.rotation.x = -0.15;
-    const rune3 = box(0.006, 0.09, 0.012, 0, 0.27, -0.032, rune);
-    rune3.rotation.x = -0.28;
+    const rune1 = box(0.007, 0.065, 0.015, 0, 0.10, 0, rune);
+    const rune2 = box(0.006, 0.065, 0.013, sweep * 0.010, 0.165, 0, rune);
+    rune2.rotation.z = -sweep * 0.14;
+    const rune3 = box(0.005, 0.055, 0.011, sweep * 0.020, 0.225, 0, rune);
+    rune3.rotation.z = -sweep * 0.28;
     g.add(rune1, rune2, rune3);
 
-    // Якорь хвата кистью руки (IK)
+    // Якорь хвата кистью руки (IK) - строго в начале координат хватного цилиндра
     const gripAnchor = new THREE.Object3D();
-    gripAnchor.position.set(0, -0.04, 0);
+    gripAnchor.position.set(0, 0, 0);
     g.add(gripAnchor);
 
-    g.scale.set(1.4, 1.4, 1.4);
-    g.rotation.x = -Math.PI * 0.40;
-    if (isLeft) {
-      g.rotation.y = 0.20;
-      g.rotation.z = -0.15;
-    } else {
-      g.rotation.y = -0.20;
-      g.rotation.z = 0.15;
-    }
+    g.scale.set(1.0, 1.0, 1.0);
+    g.rotation.set(0, 0, 0);
+    g.position.set(0, 0, 0);
 
     return { root: g, gripAnchor, runeMat: rune };
   }
