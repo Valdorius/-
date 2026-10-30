@@ -1,12 +1,12 @@
 import * as THREE from "three";
-import { loadVOX } from "./vox_loader.js?v=20261031_05";
+import { loadVOX } from "./vox_loader.js?v=20261031_06";
 
 /**
  * VOX registry with articulated limb rig support.
  * Important: never "blank" a character until VOX is actually loaded.
  * This prevents invisible enemies when a VOX fails to parse/load.
  */
-const V = "20261031_05";
+const V = "20261031_06";
 
 export const VOX_MODELS = {
   // 80x80x80 Hero class models

@@ -1,17 +1,17 @@
-import { createEngine } from "./core/engine.js?v=20261031_05";
-import { createInput } from "./core/input.js?v=20261031_05";
-import { clamp } from "./core/math.js?v=20261031_05";
-import { createHUD } from "./game/hud.js?v=20261031_05";
-import { createAudio } from "./game/audio.js?v=20261031_05";
-import { createWorld } from "./game/world.js?v=20261031_05";
-import { createSkyTitan } from "./game/sky_titan.js?v=20261031_05";
-import { createPlayer } from "./game/player.js?v=20261031_05";
-import { createWeapons } from "./game/weapons.js?v=20261031_05";
-import { createEnemies } from "./game/enemies.js?v=20261031_05";
-import { createProjectiles } from "./game/projectiles.js?v=20261031_05";
-import { createEffects } from "./game/effects.js?v=20261031_05";
-import { createProgression } from "./game/progression.js?v=20261031_05";
-import { preloadVOXModels } from "./models/vox_registry.js?v=20261031_05";
+import { createEngine } from "./core/engine.js?v=20261031_06";
+import { createInput } from "./core/input.js?v=20261031_06";
+import { clamp } from "./core/math.js?v=20261031_06";
+import { createHUD } from "./game/hud.js?v=20261031_06";
+import { createAudio } from "./game/audio.js?v=20261031_06";
+import { createWorld } from "./game/world.js?v=20261031_06";
+import { createSkyTitan } from "./game/sky_titan.js?v=20261031_06";
+import { createPlayer } from "./game/player.js?v=20261031_06";
+import { createWeapons } from "./game/weapons.js?v=20261031_06";
+import { createEnemies } from "./game/enemies.js?v=20261031_06";
+import { createProjectiles } from "./game/projectiles.js?v=20261031_06";
+import { createEffects } from "./game/effects.js?v=20261031_06";
+import { createProgression } from "./game/progression.js?v=20261031_06";
+import { preloadVOXModels } from "./models/vox_registry.js?v=20261031_06";
 
 // Kick off parallel preload of all VOX models on boot
 preloadVOXModels();

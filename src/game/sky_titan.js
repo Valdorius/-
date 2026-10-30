@@ -173,7 +173,7 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
 
   // Dedicated Carved Obsidian Weapon Plinth / Altar at X = -25.5 (further away from skeleton)
   const SWORD_REST_X = -25.5;
-  const SWORD_REST_Y = 4.8;
+  const SWORD_REST_Y = 34.0;
   const SWORD_REST_Z = 6.0;
 
   const swordPlinth = new THREE.Group();
@@ -340,28 +340,31 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
   swordGroup.rotation.set(0.08, 0, -0.06);
   titanRoot.add(swordGroup);
 
-  // Giant 22-meter double-edged blade
-  const blade = box(1.5, 22.0, 3.4, 0, 11.0, 0, swordSteelMat);
-  const bladeCore = box(1.8, 20.0, 1.6, 0, 11.0, 0, flameCoreMat);
-  const bladeAura = box(2.4, 21.0, 3.8, 0, 11.0, 0, flameMidMat);
-  const bladeEdgeOuter = box(3.0, 22.5, 4.4, 0, 11.0, 0, flameOuterMat);
+  // Giant 22-meter double-edged blade (extends along -Y from crossguard)
+  const blade = box(1.5, 22.0, 3.4, 0, -14.2, 0, swordSteelMat);
+  const bladeCore = box(1.8, 20.0, 1.6, 0, -14.2, 0, flameCoreMat);
+  const bladeAura = box(2.4, 21.0, 3.8, 0, -14.2, 0, flameMidMat);
+  const bladeEdgeOuter = box(3.0, 22.5, 4.4, 0, -14.2, 0, flameOuterMat);
 
-  // Massive horned Crossguard (9.5m wide)
-  const crossguard = box(2.8, 2.4, 9.5, 0, 22.5, 0, swordSteelMat);
-  const hornL = box(2.4, 4.5, 1.8, 0, 24.5, -4.8, throneTrimMat);
+  // Massive horned Crossguard (9.5m wide) at y = -3.2
+  const crossguard = box(2.8, 2.4, 9.5, 0, -3.2, 0, swordSteelMat);
+  const hornL = box(2.4, 4.5, 1.8, 0, -1.2, -4.8, throneTrimMat);
   hornL.rotation.x = -0.35;
-  const hornR = box(2.4, 4.5, 1.8, 0, 24.5, 4.8, throneTrimMat);
+  const hornR = box(2.4, 4.5, 1.8, 0, -1.2, 4.8, throneTrimMat);
   hornR.rotation.x = 0.35;
 
-  const grip = box(1.4, 5.5, 1.4, 0, 26.5, 0, new THREE.MeshStandardMaterial({ color: 0x140e18, roughness: 0.9 }));
-  const pommel = box(2.6, 2.6, 2.6, 0, 30.0, 0, flameCoreMat);
-  const pommelAura = box(4.0, 4.0, 4.0, 0, 30.0, 0, flameMidMat);
+  // Grip (5.5m tall, centered at y = 0, where hands grasp!)
+  const grip = box(1.4, 5.5, 1.4, 0, 0, 0, new THREE.MeshStandardMaterial({ color: 0x140e18, roughness: 0.9 }));
+
+  // Pommel (blazing demonic skull, atop the grip at y = 3.8)
+  const pommel = box(2.6, 2.6, 2.6, 0, 3.8, 0, flameCoreMat);
+  const pommelAura = box(4.0, 4.0, 4.0, 0, 3.8, 0, flameMidMat);
 
   swordGroup.add(blade, bladeCore, bladeAura, bladeEdgeOuter, crossguard, hornL, hornR, grip, pommel, pommelAura);
 
-  // Sword Fire Light
+  // Sword Fire Light (along the blade)
   const swordLight = new THREE.PointLight(0xff5500, 2.4, 45, 1.5);
-  swordLight.position.set(0, 16.0, 0);
+  swordLight.position.set(0, -14.2, 0);
   swordGroup.add(swordLight);
 
   // Dedicated illumination light to sculpt the skeleton features from front
@@ -570,13 +573,13 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
         // Sword lifts from the altar into two-handed grip above head!
         swordGroup.position.set(
           THREE.MathUtils.lerp(SWORD_REST_X, -6.0, k),
-          THREE.MathUtils.lerp(SWORD_REST_Y, 26.0, k),
+          THREE.MathUtils.lerp(SWORD_REST_Y, 40.0, k),
           THREE.MathUtils.lerp(SWORD_REST_Z, 12.0, k)
         );
         swordGroup.rotation.set(
-          THREE.MathUtils.lerp(0.08, -0.45, k),
+          THREE.MathUtils.lerp(0.08, -2.4, k),
           THREE.MathUtils.lerp(0, 0.15, k),
-          THREE.MathUtils.lerp(-0.06, 0.25, k)
+          THREE.MathUtils.lerp(-0.06, -0.25, k)
         );
 
         if (stateTimer >= 2.5) {
@@ -592,9 +595,9 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
         const p = Math.min(1.0, stateTimer / 2.2);
         const pulse = 0.5 + 0.5 * Math.sin(stateTimer * 10.0);
 
-        // Sword raised to zenith
-        swordGroup.position.set(-4.0, 32.0 + Math.sin(stateTimer * 4.0) * 1.5, 14.0);
-        swordGroup.rotation.set(-0.85, 0.10, 0.35);
+        // Sword raised to zenith (blade pointing up & back over shoulder ready to strike)
+        swordGroup.position.set(-6.0, 42.0 + Math.sin(stateTimer * 4.0) * 1.5, 12.0);
+        swordGroup.rotation.set(-2.5, 0.10, -0.25);
 
         // Skull glares down directly at the target spot
         skullGroup.rotation.x = 0.45;
@@ -614,24 +617,24 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
       }
 
       case "SLAM": {
-        // 0.45 seconds: Cataclysmic downward slash down towards the arena!
+        // 0.45 seconds: Cataclysmic downward slash: blade points forward-down into the arena!
         const p = Math.min(1.0, stateTimer / 0.45);
         const k = p * p; // rapid acceleration
 
         // Sword arcs down with titanic velocity!
         swordGroup.position.set(
-          THREE.MathUtils.lerp(-4.0, targetPos.x * 0.35, k),
-          THREE.MathUtils.lerp(32.0, 6.0, k),
-          THREE.MathUtils.lerp(14.0, 36.0, k)
+          THREE.MathUtils.lerp(-6.0, targetPos.x * 0.35, k),
+          THREE.MathUtils.lerp(42.0, 18.0, k),
+          THREE.MathUtils.lerp(12.0, 22.0, k)
         );
         swordGroup.rotation.set(
-          THREE.MathUtils.lerp(-0.85, 1.15, k),
+          THREE.MathUtils.lerp(-2.5, -0.96, k),
           0,
-          THREE.MathUtils.lerp(0.35, -0.10, k)
+          THREE.MathUtils.lerp(-0.25, 0.0, k)
         );
 
         // Skeleton lunges forward into the swing
-        skeletonGroup.rotation.x = THREE.MathUtils.lerp(0, 0.28, k);
+        skeletonGroup.rotation.x = THREE.MathUtils.lerp(0, 0.32, k);
 
         if (stateTimer >= 0.45) {
           attackState = "BURN_ACTIVE";
@@ -653,9 +656,17 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
       }
 
       case "BURN_ACTIVE": {
-        // 5.0 seconds of roaring fire carpet covering the arena area
+        // 5.0 seconds of roaring fire carpet covering the arena area: blade stays planted forward in the arena!
         const p = Math.min(1.0, stateTimer / 5.0);
         audio?.playFireSizzle?.();
+
+        swordGroup.position.set(
+          targetPos.x * 0.35,
+          18.0 + Math.sin(totalTime * 8.0) * 0.12,
+          22.0
+        );
+        swordGroup.rotation.set(-0.96, 0, 0);
+        skeletonGroup.rotation.x = 0.32;
 
         // Animate ground flames
         for (const q of groundFlameQuads) {
@@ -719,7 +730,7 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
 
         // Skeleton returns to seated pose
         skeletonGroup.position.lerpVectors(STAND_POS, SEAT_POS, k);
-        skeletonGroup.rotation.x = THREE.MathUtils.lerp(0.28, 0, k);
+        skeletonGroup.rotation.x = THREE.MathUtils.lerp(0.32, 0, k);
 
         legLGroup.rotation.x = THREE.MathUtils.lerp(0.85, 0, k);
         legRGroup.rotation.x = THREE.MathUtils.lerp(0.85, 0, k);
@@ -729,13 +740,13 @@ export function createSkyTitan({ engine, world, audio = null, player = null, ene
         // Sword returns to plinth
         swordGroup.position.set(
           THREE.MathUtils.lerp(targetPos.x * 0.35, SWORD_REST_X, k),
-          THREE.MathUtils.lerp(6.0, SWORD_REST_Y, k),
-          THREE.MathUtils.lerp(36.0, SWORD_REST_Z, k)
+          THREE.MathUtils.lerp(18.0, SWORD_REST_Y, k),
+          THREE.MathUtils.lerp(22.0, SWORD_REST_Z, k)
         );
         swordGroup.rotation.set(
-          THREE.MathUtils.lerp(1.15, 0.08, k),
+          THREE.MathUtils.lerp(-0.96, 0.08, k),
           0,
-          THREE.MathUtils.lerp(-0.10, -0.06, k)
+          THREE.MathUtils.lerp(0.0, -0.06, k)
         );
 
         // Arms return to Thinker pose
