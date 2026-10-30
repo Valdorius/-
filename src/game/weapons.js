@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_08";
+import { createFpsArms } from "./fps_arms.js?v=20261030_09";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -27,9 +27,29 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
   const HAMMER_REST_POS = new THREE.Vector3(0.24, -0.27, -0.44);
   const HAMMER_REST_ROT = new THREE.Euler(-0.38, 0.42, -0.24);
 
+  // Боевые позиции для сета "Меч и Щит"
+  const SWORD_REST_POS  = new THREE.Vector3(0.24, -0.26, -0.40);
+  const SWORD_REST_ROT  = new THREE.Euler(0.15, -0.18, -0.08);
+
+  const SHIELD_REST_POS = new THREE.Vector3(-0.28, -0.22, -0.38);
+  const SHIELD_REST_ROT = new THREE.Euler(0.08, 0.32, -0.10);
+
+  const SHIELD_BLOCK_POS = new THREE.Vector3(-0.04, -0.16, -0.32);
+  const SHIELD_BLOCK_ROT = new THREE.Euler(-0.05, 0.05, 0.0);
+
+  const SWORD_BLOCK_POS  = new THREE.Vector3(0.20, -0.28, -0.34);
+  const SWORD_BLOCK_ROT  = new THREE.Euler(0.25, -0.10, 0.0);
+
   // Первоклассный риг воксельных рук от первого лица
   const fpsArms = createFpsArms({ camera });
   fpsArms.setVisible(false);
+
+  // Левая группа оружия (для рыцарского щита)
+  const shieldHand = new THREE.Group();
+  shieldHand.name = "ShieldHandGroup";
+  camera.add(shieldHand);
+  shieldHand.visible = false;
+  let shieldModel = null;
 
   const _camWorldQuat = new THREE.Quaternion();
   const _camInvQuat = new THREE.Quaternion();
@@ -77,6 +97,17 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
     gripFront: null
   };
 
+  // refs for sword and shield viewmodel animation
+  const swordAnim = {
+    grip: null,
+    runeMat: null
+  };
+
+  const shieldAnim = {
+    grip: null,
+    runeMat: null
+  };
+
   function getStats(){
     return (progression && progression.stats) ? progression.stats : null;
   }
@@ -107,6 +138,25 @@ let cd = 0,
   let hammerSlamCd = 0;
   let hammerSlamHitTriggered = false;
 
+  // sword combo state
+  let swordSwingT = 0;
+  let swordSwingMax = 0.38;
+  let swordComboStep = 0;
+  let swordComboNext = 0;
+  let swordComboGrace = 0;
+  let swordComboQueued = false;
+  let swordHitSet = new Set();
+  let swordNextHitCrit = false;
+
+  // shield block & bash state
+  let shieldBlocking = false;
+  let shieldBlockT = 0; // 0..1 smooth transition
+  let shieldParryTimer = 999;
+  let shieldBashT = 0;
+  let shieldBashMax = 0.40;
+  let shieldBashHitTriggered = false;
+  let shieldBashHitSet = new Set();
+
   let prevRightMouseDown = false;
   let lastEnemiesRef = null;
 
@@ -124,6 +174,7 @@ let cd = 0,
   const defs = {
     spear: { name: "Руническая глефа", hint: "Ближний бой. Широкие рубящие свипы, диагональные срезы и сокрушительный вертикальный удар.", meleeRange: 3.3, dmg: 34, rate: 2.0, arc: 1.45 },
     hammer: { name: "Рунический молот", hint: "Тяжелый сокрушитель. ЛКМ — размашистый сокрушительный свип (стан/нокаут). ПКМ — удар оземь (AoE-землетрясение).", meleeRange: 2.85, dmg: 58, rate: 1.25, arc: 2.30 },
+    sword: { name: "Меч и Щит", hint: "Авангард. ЛКМ — серия из 3 ударов (срез/бэкхенд/выпад). ПКМ — блок (80% защита) и идеальное парирование (0.25с). ПКМ+ЛКМ — удар щитом (стан толпы).", meleeRange: 2.65, dmg: 38, rate: 2.2, arc: 1.60 },
     bow: { name: "Рунический лук", hint: "Дальний бой. Удерживай ЛКМ — натяжение и рунный заряд, отпусти — выстрел.", dmgMin: 22, dmgMax: 56, chargeTime: 0.85, speed: 24 },
     // Посох: медленный большой взрывной шар (чтобы читалось и было "опасно")
     staff: { name: "Посох", hint: "Магия. Медленная взрывная сфера с высоким уроном.", dmg: 34, rate: 1.35, speed: 9.0, splash: 2.20 }
@@ -146,6 +197,87 @@ let cd = 0,
     if (!v) return new THREE.Vector3();
     const x = Number(v.x) || 0, y = Number(v.y) || 0, z = Number(v.z) || 0;
     return new THREE.Vector3(x, y, z);
+  }
+
+  function buildShieldModel() {
+    if (shieldModel) shieldHand.remove(shieldModel);
+    shieldModel = new THREE.Group();
+    shieldModel.name = "ShieldViewModel";
+
+    const steel = new THREE.MeshStandardMaterial({ color: 0x90a5c0, roughness: 0.30, metalness: 0.88 });
+    const edgeSteel = new THREE.MeshStandardMaterial({ color: 0xdde8fc, roughness: 0.18, metalness: 0.95 });
+    const darkSteel = new THREE.MeshStandardMaterial({ color: 0x1e2634, roughness: 0.55, metalness: 0.65 });
+    const leather = new THREE.MeshStandardMaterial({ color: 0x3d2214, roughness: 0.90, metalness: 0.05 });
+    const goldRune = new THREE.MeshStandardMaterial({
+      color: 0xffcc22,
+      emissive: 0xffaa00,
+      emissiveIntensity: 2.5,
+      roughness: 0.18,
+      metalness: 0.12
+    });
+    shieldAnim.runeMat = goldRune;
+
+    const sg = new THREE.Group();
+
+    // 1. Каплевидный / тарч корпус щита (слоеные воксельные пластины)
+    // Верхняя широкая плита
+    sg.add(box(0.44, 0.32, 0.038, 0, 0.14, 0, darkSteel));
+    // Средняя сужающаяся плита
+    sg.add(box(0.38, 0.28, 0.036, 0, -0.12, 0, darkSteel));
+    // Нижняя треугольная клиновидная плита
+    sg.add(box(0.26, 0.24, 0.034, 0, -0.34, 0, darkSteel));
+    // Заостренный нижний клюв щита
+    sg.add(box(0.14, 0.18, 0.032, 0, -0.50, 0, darkSteel));
+
+    // 2. Усиленный стальной кант / обод по периметру
+    // Верхняя перекладина обода
+    sg.add(box(0.48, 0.042, 0.048, 0, 0.31, 0, steel));
+    // Боковые вертикальные канты
+    sg.add(box(0.040, 0.44, 0.046, -0.22, 0.12, 0, steel));
+    sg.add(box(0.040, 0.44, 0.046, 0.22, 0.12, 0, steel));
+    // Диагональные скосы к нижнему острию
+    sg.add(box(0.036, 0.36, 0.044, -0.14, -0.30, 0, steel));
+    sg.add(box(0.036, 0.36, 0.044, 0.14, -0.30, 0, steel));
+    // Оковка нижнего острия
+    sg.add(box(0.052, 0.08, 0.048, 0, -0.56, 0, steel));
+
+    // Заклёпки по углам и ободу
+    const rivetMat = edgeSteel;
+    sg.add(box(0.024, 0.024, 0.052, -0.21, 0.29, 0, rivetMat));
+    sg.add(box(0.024, 0.024, 0.052, 0.21, 0.29, 0, rivetMat));
+    sg.add(box(0.024, 0.024, 0.052, 0, 0.29, 0, rivetMat));
+    sg.add(box(0.024, 0.024, 0.052, -0.21, -0.06, 0, rivetMat));
+    sg.add(box(0.024, 0.024, 0.052, 0.21, -0.06, 0, rivetMat));
+
+    // 3. Выступающий гранёный умбон (Umbo) по центру для Shield Bash
+    sg.add(box(0.18, 0.18, 0.055, 0, 0.02, -0.035, steel));
+    sg.add(box(0.12, 0.12, 0.065, 0, 0.02, -0.075, steel));
+    // Колющий пирамидальный шип в центре умбона
+    sg.add(box(0.06, 0.06, 0.065, 0, 0.02, -0.125, edgeSteel));
+    sg.add(box(0.028, 0.028, 0.045, 0, 0.02, -0.165, edgeSteel));
+
+    // 4. Сияющий солнечный / орденский рунический герб
+    sg.add(box(0.032, 0.54, 0.044, 0, 0.0, -0.022, goldRune));
+    sg.add(box(0.32, 0.032, 0.044, 0, 0.08, -0.022, goldRune));
+    // Ромбовидный ореол вокруг умбона
+    sg.add(box(0.15, 0.15, 0.042, 0, 0.02, -0.022, goldRune));
+
+    // 5. Внутренняя сторона: крепление к левой руке
+    // Кожаные ремни под предплечье
+    sg.add(box(0.18, 0.042, 0.045, 0, 0.14, 0.035, leather));
+    // Стальная рукоять для латной перчатки
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.16, 8), darkSteel);
+    handle.position.set(0, -0.04, 0.045);
+    sg.add(handle);
+
+    // Точка хвата левой рукой (IK)
+    shieldAnim.grip = new THREE.Object3D();
+    shieldAnim.grip.position.set(0, -0.04, 0.045);
+    sg.add(shieldAnim.grip);
+
+    sg.scale.set(1.35, 1.35, 1.35);
+    shieldModel.add(sg);
+    shieldHand.add(shieldModel);
   }
 
   function buildModel(w) {
@@ -406,6 +538,86 @@ let cd = 0,
       g.add(headGroup);
       g.scale.set(1.42, 1.42, 1.42);
       model.add(g);
+    }
+
+    if (w === "sword") {
+      swordAnim.runeMat = null;
+      swordAnim.grip = null;
+
+      const g = new THREE.Group();
+      g.name = "SwordViewModel";
+
+      const steel = new THREE.MeshStandardMaterial({ color: 0x98adc8, roughness: 0.28, metalness: 0.88 });
+      const edgeSteel = new THREE.MeshStandardMaterial({ color: 0xe6f0ff, roughness: 0.16, metalness: 0.95 });
+      const darkSteel = new THREE.MeshStandardMaterial({ color: 0x222a38, roughness: 0.50, metalness: 0.70 });
+      const leather = new THREE.MeshStandardMaterial({ color: 0x3d2214, roughness: 0.90, metalness: 0.05 });
+      const goldRune = new THREE.MeshStandardMaterial({
+        color: 0xffcc22,
+        emissive: 0xffaa00,
+        emissiveIntensity: 2.5,
+        roughness: 0.18,
+        metalness: 0.12
+      });
+      swordAnim.runeMat = goldRune;
+
+      // 1. Навершие (восьмигранный стальной противовес)
+      const pommel = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.038, 0.08, 8), darkSteel);
+      pommel.position.set(0, -0.34, 0);
+      g.add(pommel);
+      const pommelRing = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.012, 8, 16), steel);
+      pommelRing.position.set(0, -0.39, 0);
+      pommelRing.rotation.x = Math.PI / 2;
+      g.add(pommelRing);
+
+      // 2. Рукоять с витой кожаной оплеткой
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.032, 0.22, 8), leather);
+      grip.position.set(0, -0.19, 0);
+      g.add(grip);
+      // Золотые витки оплетки рукояти
+      for (let y = -0.27; y <= -0.11; y += 0.04) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.033, 0.005, 6, 12), goldRune);
+        ring.position.set(0, y, 0);
+        ring.rotation.x = Math.PI / 2;
+        g.add(ring);
+      }
+
+      // Точка хвата правой латной перчаткой (IK)
+      swordAnim.grip = new THREE.Object3D();
+      swordAnim.grip.position.set(0, -0.19, 0);
+      g.add(swordAnim.grip);
+
+      // 3. Стальная фигурная крестовина гарды (Crossguard)
+      g.add(box(0.26, 0.036, 0.065, 0, -0.06, 0, darkSteel));
+      // Граненые наконечники крестовины
+      g.add(box(0.045, 0.052, 0.075, -0.13, -0.06, 0, steel));
+      g.add(box(0.045, 0.052, 0.075, 0.13, -0.06, 0, steel));
+      // Золотой рунный медальон в центре гарды
+      g.add(box(0.032, 0.032, 0.072, 0, -0.06, 0, goldRune));
+
+      // 4. Рикассо (усиленная пята клинка)
+      g.add(box(0.074, 0.08, 0.034, 0, 0.0, 0, darkSteel));
+
+      // 5. Двусторонний стальной клинок паладина (длина ~0.95м)
+      // Центральное тело клинка
+      g.add(box(0.060, 0.88, 0.022, 0, 0.48, 0, steel));
+      // Острые режущие грани
+      g.add(box(0.016, 0.88, 0.012, -0.038, 0.48, 0, edgeSteel));
+      g.add(box(0.016, 0.88, 0.012, 0.038, 0.48, 0, edgeSteel));
+      // Граненое колющее острие (Tip)
+      g.add(box(0.046, 0.08, 0.018, 0, 0.94, 0, steel));
+      g.add(box(0.022, 0.07, 0.012, 0, 0.99, 0, edgeSteel));
+
+      // 6. Пылающий золотой рунический дол (Fuller)
+      g.add(box(0.016, 0.72, 0.026, 0, 0.46, 0, goldRune));
+
+      g.scale.set(1.35, 1.35, 1.35);
+      model.add(g);
+
+      // Сборка рыцарского тарча / щита
+      buildShieldModel();
+      shieldHand.visible = true;
+    } else {
+      shieldHand.visible = false;
     }
 
     if (w === "bow") {
@@ -1144,6 +1356,369 @@ let cd = 0,
     }
   }
 
+  // --- КОМБО И МЕХАНИКИ МЕЧА И ЩИТА (SWORD & SHIELD) ---
+  const swordCombos = [
+    {
+      name: "slash",
+      dur: 0.36,
+      active: [0.18, 0.52],
+      rangeMul: 1.0,
+      dmgMul: 1.0,
+      arc: 1.55,
+      anim(p) {
+        if (p < 0.22) {
+          const t = p / 0.22;
+          const k = t * t;
+          hand.position.set(
+            SWORD_REST_POS.x + 0.10 * k,
+            SWORD_REST_POS.y + 0.10 * k,
+            SWORD_REST_POS.z + 0.06 * k
+          );
+          hand.rotation.set(
+            SWORD_REST_ROT.x + 0.35 * k,
+            SWORD_REST_ROT.y + 0.45 * k,
+            SWORD_REST_ROT.z - 0.30 * k
+          );
+        } else if (p < 0.55) {
+          const t = (p - 0.22) / 0.33;
+          const k = Math.pow(t, 1.8);
+          hand.position.set(
+            (SWORD_REST_POS.x + 0.10) - 0.48 * k,
+            (SWORD_REST_POS.y + 0.10) - 0.20 * k,
+            (SWORD_REST_POS.z + 0.06) - 0.12 * k
+          );
+          hand.rotation.set(
+            (SWORD_REST_ROT.x + 0.35) - 0.65 * k,
+            (SWORD_REST_ROT.y + 0.45) - 1.15 * k,
+            (SWORD_REST_ROT.z - 0.30) + 0.75 * k
+          );
+        } else {
+          const t = (p - 0.55) / 0.45;
+          const k = 1 - t * (2 - t);
+          hand.position.set(
+            SWORD_REST_POS.x * (1 - k) - 0.14 * k,
+            SWORD_REST_POS.y * (1 - k) - 0.36 * k,
+            SWORD_REST_POS.z * (1 - k) - 0.46 * k
+          );
+          hand.rotation.set(
+            SWORD_REST_ROT.x * (1 - k) - 0.30 * k,
+            SWORD_REST_ROT.y * (1 - k) - 0.70 * k,
+            SWORD_REST_ROT.z * (1 - k) + 0.45 * k
+          );
+        }
+      }
+    },
+    {
+      name: "backhand",
+      dur: 0.34,
+      active: [0.18, 0.50],
+      rangeMul: 1.0,
+      dmgMul: 1.1,
+      arc: 1.55,
+      anim(p) {
+        if (p < 0.20) {
+          const t = p / 0.20;
+          const k = t * t;
+          hand.position.set(
+            -0.14 * k + SWORD_REST_POS.x * (1 - k),
+            -0.28 * k + SWORD_REST_POS.y * (1 - k),
+            -0.38 * k + SWORD_REST_POS.z * (1 - k)
+          );
+          hand.rotation.set(
+            0.20 * k + SWORD_REST_ROT.x * (1 - k),
+            -0.60 * k + SWORD_REST_ROT.y * (1 - k),
+            0.35 * k + SWORD_REST_ROT.z * (1 - k)
+          );
+        } else if (p < 0.52) {
+          const t = (p - 0.20) / 0.32;
+          const k = Math.pow(t, 1.8);
+          hand.position.set(
+            -0.14 + 0.50 * k,
+            -0.28 + 0.08 * k,
+            -0.38 - 0.04 * k
+          );
+          hand.rotation.set(
+            0.20 - 0.15 * k,
+            -0.60 + 1.25 * k,
+            0.35 - 0.65 * k
+          );
+        } else {
+          const t = (p - 0.52) / 0.48;
+          const k = 1 - t * (2 - t);
+          hand.position.set(
+            SWORD_REST_POS.x * (1 - k) + 0.36 * k,
+            SWORD_REST_POS.y * (1 - k) - 0.20 * k,
+            SWORD_REST_POS.z * (1 - k) - 0.42 * k
+          );
+          hand.rotation.set(
+            SWORD_REST_ROT.x * (1 - k) + 0.05 * k,
+            SWORD_REST_ROT.y * (1 - k) + 0.65 * k,
+            SWORD_REST_ROT.z * (1 - k) - 0.30 * k
+          );
+        }
+      }
+    },
+    {
+      name: "thrust",
+      dur: 0.42,
+      active: [0.20, 0.50],
+      rangeMul: 1.30, // 3.45m reach
+      dmgMul: 1.5,   // 57 dmg
+      arc: 0.85,
+      anim(p) {
+        if (p < 0.22) {
+          const t = p / 0.22;
+          const k = t * t;
+          hand.position.set(
+            SWORD_REST_POS.x - 0.06 * k,
+            SWORD_REST_POS.y + 0.04 * k,
+            SWORD_REST_POS.z + 0.16 * k
+          );
+          hand.rotation.set(
+            SWORD_REST_ROT.x - 0.12 * k,
+            SWORD_REST_ROT.y + 0.16 * k,
+            SWORD_REST_ROT.z + 0.08 * k
+          );
+        } else if (p < 0.50) {
+          const t = (p - 0.22) / 0.28;
+          const k = Math.pow(t, 2.0);
+          hand.position.set(
+            (SWORD_REST_POS.x - 0.06) - 0.14 * k,
+            (SWORD_REST_POS.y + 0.04) + 0.06 * k,
+            (SWORD_REST_POS.z + 0.16) - 0.42 * k
+          );
+          hand.rotation.set(
+            (SWORD_REST_ROT.x - 0.12) - 0.03 * k,
+            (SWORD_REST_ROT.y + 0.16) - 0.18 * k,
+            (SWORD_REST_ROT.z + 0.08) - 0.08 * k
+          );
+        } else {
+          const t = (p - 0.50) / 0.50;
+          const k = 1 - t * (2 - t);
+          hand.position.set(
+            SWORD_REST_POS.x * (1 - k) + 0.04 * k,
+            SWORD_REST_POS.y * (1 - k) - 0.16 * k,
+            SWORD_REST_POS.z * (1 - k) - 0.66 * k
+          );
+          hand.rotation.set(
+            SWORD_REST_ROT.x * (1 - k),
+            SWORD_REST_ROT.y * (1 - k),
+            SWORD_REST_ROT.z * (1 - k)
+          );
+        }
+      }
+    }
+  ];
+
+  function startSwordSwing(step = 0) {
+    swordComboStep = step;
+    const s = swordCombos[swordComboStep] || swordCombos[0];
+    swordSwingMax = s.dur;
+    swordSwingT = swordSwingMax;
+    swordHitSet.clear();
+    swordComboQueued = false;
+    swordComboNext = (swordComboStep + 1) % swordCombos.length;
+    swordComboGrace = 0.24;
+    cd = swordSwingMax * 0.45;
+  }
+
+  function startShieldBash() {
+    shieldBashMax = 0.40;
+    shieldBashT = shieldBashMax;
+    shieldBashHitTriggered = false;
+    shieldBashHitSet.clear();
+    cd = shieldBashMax + 0.10;
+  }
+
+  function updateShield(dt) {
+    if (shieldBashT > 0) {
+      shieldBashT -= dt;
+      const p = 1 - shieldBashT / shieldBashMax;
+      player?.avatar?.setCombatAction?.({ weapon: "sword", action: "bash", progress: p });
+      if (!shieldBashHitTriggered && p >= 0.32) {
+        shieldBashHitTriggered = true;
+        executeShieldBashHit();
+      }
+      if (p < 0.36) {
+        const t = p / 0.36;
+        const k = t * t;
+        shieldHand.position.set(
+          SHIELD_BLOCK_POS.x + (0.02 - SHIELD_BLOCK_POS.x) * k,
+          SHIELD_BLOCK_POS.y + (-0.12 - SHIELD_BLOCK_POS.y) * k,
+          SHIELD_BLOCK_POS.z + (-0.56 - SHIELD_BLOCK_POS.z) * k
+        );
+        shieldHand.rotation.set(
+          SHIELD_BLOCK_ROT.x + (-0.10 - SHIELD_BLOCK_ROT.x) * k,
+          SHIELD_BLOCK_ROT.y + (0.0 - SHIELD_BLOCK_ROT.y) * k,
+          SHIELD_BLOCK_ROT.z + (0.0 - SHIELD_BLOCK_ROT.z) * k
+        );
+      } else {
+        const t = (p - 0.36) / 0.64;
+        const k = 1 - t * (2 - t);
+        shieldHand.position.set(
+          SHIELD_BLOCK_POS.x * (1 - k) + 0.02 * k,
+          SHIELD_BLOCK_POS.y * (1 - k) - 0.12 * k,
+          SHIELD_BLOCK_POS.z * (1 - k) - 0.56 * k
+        );
+        shieldHand.rotation.set(
+          SHIELD_BLOCK_ROT.x * (1 - k) - 0.10 * k,
+          SHIELD_BLOCK_ROT.y * (1 - k),
+          SHIELD_BLOCK_ROT.z * (1 - k)
+        );
+      }
+      if (shieldBashT <= 0) {
+        shieldBashT = 0;
+        player?.avatar?.setCombatAction?.(null);
+      }
+    } else if (shieldBlocking) {
+      shieldBlockT = Math.min(1, shieldBlockT + dt * 7.5);
+      shieldParryTimer += dt;
+      player?.avatar?.setCombatAction?.({ weapon: "sword", action: "block", progress: shieldBlockT });
+
+      const k = shieldBlockT * shieldBlockT * (3 - 2 * shieldBlockT);
+      shieldHand.position.lerpVectors(SHIELD_REST_POS, SHIELD_BLOCK_POS, k);
+      shieldHand.rotation.x = SHIELD_REST_ROT.x * (1 - k) + SHIELD_BLOCK_ROT.x * k;
+      shieldHand.rotation.y = SHIELD_REST_ROT.y * (1 - k) + SHIELD_BLOCK_ROT.y * k;
+      shieldHand.rotation.z = SHIELD_REST_ROT.z * (1 - k) + SHIELD_BLOCK_ROT.z * k;
+
+      if (swordSwingT <= 0) {
+        hand.position.lerpVectors(SWORD_REST_POS, SWORD_BLOCK_POS, k);
+        hand.rotation.x = SWORD_REST_ROT.x * (1 - k) + SWORD_BLOCK_ROT.x * k;
+        hand.rotation.y = SWORD_REST_ROT.y * (1 - k) + SWORD_BLOCK_ROT.y * k;
+        hand.rotation.z = SWORD_REST_ROT.z * (1 - k) + SWORD_BLOCK_ROT.z * k;
+      }
+    } else {
+      shieldBlockT = Math.max(0, shieldBlockT - dt * 6.5);
+      shieldParryTimer = 999;
+      if (shieldBlockT > 0) {
+        const k = shieldBlockT * shieldBlockT * (3 - 2 * shieldBlockT);
+        shieldHand.position.lerpVectors(SHIELD_REST_POS, SHIELD_BLOCK_POS, k);
+        shieldHand.rotation.x = SHIELD_REST_ROT.x * (1 - k) + SHIELD_BLOCK_ROT.x * k;
+        shieldHand.rotation.y = SHIELD_REST_ROT.y * (1 - k) + SHIELD_BLOCK_ROT.y * k;
+        shieldHand.rotation.z = SHIELD_REST_ROT.z * (1 - k) + SHIELD_BLOCK_ROT.z * k;
+      } else {
+        shieldHand.position.copy(SHIELD_REST_POS);
+        shieldHand.rotation.copy(SHIELD_REST_ROT);
+      }
+    }
+  }
+
+  function executeShieldBashHit() {
+    camImpulseX = -0.035;
+    camImpulseZ = (Math.random() - 0.5) * 0.04;
+
+    const origin = new THREE.Vector3();
+    camera.getWorldPosition(origin);
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    dir.y *= 0.25;
+    dir.normalize();
+
+    fx?.addShockwave?.(origin.clone().addScaledVector(dir, 1.2), 2.2);
+
+    if (!lastEnemiesRef || typeof lastEnemiesRef.forEachInRadius !== "function") return;
+    const range = 2.65;
+    const arc = 1.85; // 105 deg
+
+    lastEnemiesRef.forEachInRadius(origin, range, (e) => {
+      const ep = (e && e.position) || e?.pos || (e.mesh && e.mesh.position);
+      if (!ep) return;
+      const to = safeCloneVec3(ep).sub(origin);
+      to.y = 0;
+      if (to.length() > range) return;
+      to.normalize();
+      if (Math.acos(clamp(to.dot(dir), -1, 1)) > arc) return;
+
+      const id = (e && (e.id ?? e._id ?? e.uuid)) ?? null;
+      if (id !== null && shieldBashHitSet.has(id)) return;
+      if (id !== null) shieldBashHitSet.add(id);
+
+      const hitPoint = ep ? new THREE.Vector3(ep.x, (ep.y || 0) + 1.0, ep.z) : origin.clone().addScaledVector(dir, 1.6);
+      const knockDir = to.clone();
+
+      const meta = {
+        kind: "blunt",
+        stagger: 1.5,
+        knockback: 4.2,
+        knockDir,
+        srcPos: origin,
+        point: hitPoint
+      };
+
+      if (typeof lastEnemiesRef.applyDamage === "function") {
+        const dealt = lastEnemiesRef.applyDamage(id, 32, meta);
+        if (dealt?.killed && progression?.onKill) {
+          progression.onKill(dealt.xp || 0);
+          if (dealt.bossLoot && progression.openBossLoot) progression.openBossLoot();
+        }
+      }
+    });
+  }
+
+  function triggerPerfectParry(meta) {
+    camImpulseX = 0.035;
+    camImpulseZ = (Math.random() - 0.5) * 0.05;
+
+    const origin = new THREE.Vector3();
+    camera.getWorldPosition(origin);
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+
+    fx?.addShockwave?.(origin.clone().addScaledVector(dir, 1.2), 2.5);
+    fx?.addHit?.(origin.clone().addScaledVector(dir, 1.0), "crit", 2.5);
+
+    swordNextHitCrit = true;
+
+    if (lastEnemiesRef && typeof lastEnemiesRef.forEachInRadius === "function") {
+      lastEnemiesRef.forEachInRadius(origin, 3.2, (e) => {
+        const ep = (e && e.position) || e?.pos || (e.mesh && e.mesh.position);
+        if (!ep) return;
+        const to = safeCloneVec3(ep).sub(origin);
+        to.y = 0;
+        if (to.length() > 3.2) return;
+        to.normalize();
+        if (to.dot(dir) < 0.3) return;
+        const id = (e && (e.id ?? e._id ?? e.uuid)) ?? null;
+        if (typeof lastEnemiesRef.applyDamage === "function") {
+          lastEnemiesRef.applyDamage(id, 14, {
+            kind: "parry",
+            stagger: 1.8,
+            knockback: 3.5,
+            knockDir: to,
+            srcPos: origin
+          });
+        }
+      });
+    }
+  }
+
+  function triggerShieldBlock(absorbedDmg) {
+    camImpulseX = -0.018;
+    const origin = new THREE.Vector3();
+    camera.getWorldPosition(origin);
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    fx?.addHit?.(origin.clone().addScaledVector(dir, 0.9), "metal", 1.3);
+  }
+
+  // Hook player damage for Shield Blocking & Perfect Parry
+  const originalPlayerApplyDamage = player.applyDamage?.bind(player);
+  if (originalPlayerApplyDamage) {
+    player.applyDamage = function (dmg, meta = {}) {
+      if (weapon === "sword" && shieldBlocking) {
+        if (shieldParryTimer <= 0.25) {
+          triggerPerfectParry(meta);
+          return;
+        } else {
+          triggerShieldBlock(dmg * 0.80);
+          originalPlayerApplyDamage(dmg * 0.20, meta);
+          return;
+        }
+      }
+      originalPlayerApplyDamage(dmg, meta);
+    };
+  }
+
   function equip(w) {
     if (!defs[w]) w = "spear";
     weapon = w;
@@ -1167,6 +1742,11 @@ let cd = 0,
     }
     spearStreak = 0; spearStreakT = 0;
 
+    swordSwingT = 0; swordComboStep = 0; swordComboNext = 0; swordComboGrace = 0; swordComboQueued = false;
+    swordHitSet.clear(); swordNextHitCrit = false;
+    shieldBlocking = false; shieldBlockT = 0; shieldParryTimer = 999;
+    shieldBashT = 0; shieldBashHitTriggered = false; shieldBashHitSet.clear();
+
     buildModel(w);
     if (w === "bow") setBowPull(0);
 
@@ -1174,6 +1754,7 @@ let cd = 0,
       fpsArms.setVisible(true);
       if (w === "hammer") fpsArms.setRuneColor(0xffaa22);
       else if (w === "spear") fpsArms.setRuneColor(0x00f0ff);
+      else if (w === "sword") fpsArms.setRuneColor(0xffcc22);
       else if (w === "bow") fpsArms.setRuneColor(0x00f0ff);
       else if (w === "staff") fpsArms.setRuneColor(0xff4455);
     }
@@ -1181,6 +1762,11 @@ let cd = 0,
     if (w === "hammer") {
       hand.position.copy(HAMMER_REST_POS);
       hand.rotation.copy(HAMMER_REST_ROT);
+    } else if (w === "sword") {
+      hand.position.copy(SWORD_REST_POS);
+      hand.rotation.copy(SWORD_REST_ROT);
+      shieldHand.position.copy(SHIELD_REST_POS);
+      shieldHand.rotation.copy(SHIELD_REST_ROT);
     } else {
       hand.position.copy(baseHandPos);
       hand.rotation.copy(baseHandRot);
@@ -1253,6 +1839,53 @@ let cd = 0,
           startHammerSlam();
         } else if (justPressed && cd <= 0 && hammerSlamT <= 0) {
           startHammerSwing();
+        }
+      }
+    }
+
+    if (weapon === "sword") {
+      shieldBlocking = rightDown && shieldBashT <= 0;
+      if (rightJustPressed) {
+        shieldParryTimer = 0;
+      }
+      updateShield(dt);
+
+      if (swordSwingT > 0) {
+        swordSwingT -= dt;
+        const s = swordCombos[swordComboStep] || swordCombos[0];
+        const p = 1 - swordSwingT / swordSwingMax;
+        s.anim(p);
+        player?.avatar?.setCombatAction?.({ weapon: "sword", action: `slash_${swordComboStep + 1}`, progress: p });
+
+        if (justPressed && p >= s.active[0] && swordComboGrace > 0) {
+          swordComboQueued = true;
+        }
+
+        if (swordSwingT <= 0) {
+          swordSwingT = 0;
+          player?.avatar?.setCombatAction?.(null);
+          if (swordComboQueued) {
+            startSwordSwing(swordComboNext);
+          }
+        }
+      } else {
+        if (!shieldBlocking) {
+          player?.avatar?.setCombatAction?.(null);
+          hand.rotation.copy(SWORD_REST_ROT);
+          hand.position.copy(SWORD_REST_POS);
+        }
+
+        if (shieldBlocking && justPressed && shieldBashT <= 0 && cd <= 0) {
+          startShieldBash();
+        } else if (!shieldBlocking && justPressed && cd <= 0) {
+          startSwordSwing(swordComboNext && swordComboGrace > 0 ? swordComboNext : 0);
+        }
+      }
+
+      if (swordComboGrace > 0) {
+        swordComboGrace -= dt;
+        if (swordComboGrace <= 0) {
+          swordComboNext = 0;
         }
       }
     }
@@ -1378,6 +2011,20 @@ let cd = 0,
         }
 
         fpsArms.update(dt, "hammer", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
+      } else if (weapon === "sword" && swordAnim.grip && shieldAnim.grip) {
+        shieldHand.updateMatrixWorld(true);
+
+        swordAnim.grip.getWorldPosition(_tmpPosR);
+        camera.worldToLocal(_tmpPosR);
+        swordAnim.grip.getWorldQuaternion(_tmpQuatR);
+        _tmpQuatR.premultiply(_camInvQuat);
+
+        shieldAnim.grip.getWorldPosition(_tmpPosL);
+        camera.worldToLocal(_tmpPosL);
+        shieldAnim.grip.getWorldQuaternion(_tmpQuatL);
+        _tmpQuatL.premultiply(_camInvQuat);
+
+        fpsArms.update(dt, "sword", _tmpPosR, _tmpQuatR, _tmpPosL, _tmpQuatL, true, true);
       } else if (weapon === "spear" && spearAnim.gripRear && spearAnim.gripFront) {
         spearAnim.gripRear.getWorldPosition(_tmpPosR);
         camera.worldToLocal(_tmpPosR);
@@ -1479,6 +2126,72 @@ let cd = 0,
             player.hp = clamp(player.hp + dmg * (st.hammerLifesteal || 0), 0, player.hpMax);
           }
 
+          if (dealt?.killed && progression?.onKill) {
+            progression.onKill(dealt.xp || 0);
+            if (dealt.bossLoot && progression.openBossLoot) progression.openBossLoot();
+          }
+        }
+      });
+      return;
+    }
+
+    if (weapon === "sword") {
+      if (swordSwingT <= 0) return;
+      const s = swordCombos[swordComboStep] || swordCombos[0];
+      const p = 1 - swordSwingT / swordSwingMax;
+      if (p < s.active[0] || p > s.active[1]) return;
+
+      const origin = new THREE.Vector3();
+      camera.getWorldPosition(origin);
+
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      dir.y *= 0.25;
+      dir.normalize();
+
+      if (!enemies || typeof enemies.forEachInRadius !== "function") return;
+
+      const st = getStats();
+      const range = defs.sword.meleeRange * (s.rangeMul ?? 1) * (st?.swordReachMul ?? 1);
+
+      enemies.forEachInRadius(origin, range, (e) => {
+        const ep = (e && e.position) || e?.pos || (e.mesh && e.mesh.position);
+        if (!ep) return;
+
+        const to = safeCloneVec3(ep).sub(origin);
+        to.y = 0;
+        if (to.length() > range) return;
+        to.normalize();
+
+        const arc = s.arc;
+        if (Math.acos(clamp(to.dot(dir), -1, 1)) > arc) return;
+
+        const id = (e && (e.id ?? e._id ?? e.uuid)) ?? null;
+        if (id !== null && swordHitSet.has(id)) return;
+        if (id !== null) swordHitSet.add(id);
+
+        let dmg = defs.sword.dmg * (s.dmgMul ?? 1) * ((st?.damageMul ?? 1) * (st?.arenaDamageMul ?? 1));
+        let isCrit = false;
+        if (swordNextHitCrit) {
+          dmg *= 2.0; // Гарантированный крит после успешного парирования
+          isCrit = true;
+          swordNextHitCrit = false;
+        }
+
+        const hitPoint = ep ? new THREE.Vector3(ep.x, (ep.y || 0) + 1.1, ep.z) : origin.clone().addScaledVector(dir, 1.8);
+        const knockDir = to.clone();
+
+        const meta = {
+          kind: isCrit ? "crit" : "melee",
+          stagger: isCrit ? 1.5 : 0.8,
+          knockback: isCrit ? 2.5 : 1.4,
+          knockDir,
+          srcPos: origin,
+          point: hitPoint
+        };
+
+        if (typeof enemies.applyDamage === "function") {
+          const dealt = enemies.applyDamage(id, dmg, meta);
           if (dealt?.killed && progression?.onKill) {
             progression.onKill(dealt.xp || 0);
             if (dealt.bossLoot && progression.openBossLoot) progression.openBossLoot();

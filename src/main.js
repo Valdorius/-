@@ -1,16 +1,16 @@
-import { createEngine } from "./core/engine.js?v=20261030_08";
-import { createInput } from "./core/input.js?v=20261030_08";
-import { clamp } from "./core/math.js?v=20261030_08";
-import { createHUD } from "./game/hud.js?v=20261030_08";
-import { createAudio } from "./game/audio.js?v=20261030_08";
-import { createWorld } from "./game/world.js?v=20261030_08";
-import { createPlayer } from "./game/player.js?v=20261030_08";
-import { createWeapons } from "./game/weapons.js?v=20261030_08";
-import { createEnemies } from "./game/enemies.js?v=20261030_08";
-import { createProjectiles } from "./game/projectiles.js?v=20261030_08";
-import { createEffects } from "./game/effects.js?v=20261030_08";
-import { createProgression } from "./game/progression.js?v=20261030_08";
-import { preloadVOXModels } from "./models/vox_registry.js?v=20261030_08";
+import { createEngine } from "./core/engine.js?v=20261030_09";
+import { createInput } from "./core/input.js?v=20261030_09";
+import { clamp } from "./core/math.js?v=20261030_09";
+import { createHUD } from "./game/hud.js?v=20261030_09";
+import { createAudio } from "./game/audio.js?v=20261030_09";
+import { createWorld } from "./game/world.js?v=20261030_09";
+import { createPlayer } from "./game/player.js?v=20261030_09";
+import { createWeapons } from "./game/weapons.js?v=20261030_09";
+import { createEnemies } from "./game/enemies.js?v=20261030_09";
+import { createProjectiles } from "./game/projectiles.js?v=20261030_09";
+import { createEffects } from "./game/effects.js?v=20261030_09";
+import { createProgression } from "./game/progression.js?v=20261030_09";
+import { preloadVOXModels } from "./models/vox_registry.js?v=20261030_09";
 
 // Kick off parallel preload of all VOX models on boot
 preloadVOXModels();
@@ -71,10 +71,10 @@ function buildPick(){
 buildPick();
 window.__game = { enemies, player, weapons, engine, input, world };
 
-// Quick weapon hotkeys (1: Глефа, 2: Молот, 3: Лук, 4: Посох)
+// Quick weapon hotkeys (1: Глефа, 2: Молот, 3: Меч и Щит, 4: Лук, 5: Посох)
 window.addEventListener("keydown", (e) => {
   if (paused || gameOver || !weapons.hasWeapon()) return;
-  const keyMap = { Digit1: "spear", Digit2: "hammer", Digit3: "bow", Digit4: "staff" };
+  const keyMap = { Digit1: "spear", Digit2: "hammer", Digit3: "sword", Digit4: "bow", Digit5: "staff" };
   if (keyMap[e.code]) {
     const w = keyMap[e.code];
     weapons.equip(w);

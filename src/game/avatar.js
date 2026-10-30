@@ -180,6 +180,12 @@ export function createVoxelAvatar({
     emissiveIntensity: 2.2,
     roughness: 0.20
   });
+  const matGoldRune = new THREE.MeshStandardMaterial({
+    color: 0xffcc22,
+    emissive: 0xffaa00,
+    emissiveIntensity: 2.4,
+    roughness: 0.18
+  });
 
   function createThirdPersonWeapon(wType) {
     const wg = new THREE.Group();
@@ -217,6 +223,26 @@ export function createVoxelAvatar({
       // Glowing Amber Rune Core
       wpart({ sx: 0.12, sy: 0.12, sz: 0.12, x: 0, y: 0.88, z: 0, mat: matAmberRune, name: "RuneCore" });
       wpart({ sx: 0.27, sy: 0.06, sz: 0.16, x: 0, y: 0.88, z: 0, mat: matAmberRune, name: "RuneBandL" });
+    } else if (wType === "sword") {
+      // Одноручный палаш паладина
+      // 1. Pommel
+      wpart({ sx: 0.08, sy: 0.10, sz: 0.08, x: 0, y: -0.22, z: 0, mat: matWeaponDark, name: "Pommel" });
+      // 2. Leather grip
+      wpart({ sx: 0.055, sy: 0.22, sz: 0.055, x: 0, y: -0.06, z: 0, mat: matWeaponWood, name: "Grip" });
+      // 3. Steel Crossguard
+      wpart({ sx: 0.26, sy: 0.045, sz: 0.07, x: 0, y: 0.08, z: 0, mat: matWeaponDark, name: "Guard" });
+      wpart({ sx: 0.045, sy: 0.055, sz: 0.075, x: -0.13, y: 0.08, z: 0, mat: matWeaponSteel });
+      wpart({ sx: 0.045, sy: 0.055, sz: 0.075, x: 0.13, y: 0.08, z: 0, mat: matWeaponSteel });
+      wpart({ sx: 0.04, sy: 0.04, sz: 0.076, x: 0, y: 0.08, z: 0, mat: matGoldRune });
+      // 4. Damascus Steel Blade
+      wpart({ sx: 0.07, sy: 0.90, sz: 0.026, x: 0, y: 0.58, z: 0, mat: matWeaponSteel, name: "Blade" });
+      wpart({ sx: 0.018, sy: 0.90, sz: 0.016, x: -0.042, y: 0.58, z: 0, mat: matWeaponSteel });
+      wpart({ sx: 0.018, sy: 0.90, sz: 0.016, x: 0.042, y: 0.58, z: 0, mat: matWeaponSteel });
+      // Tapered tip
+      wpart({ sx: 0.05, sy: 0.10, sz: 0.020, x: 0, y: 1.07, z: 0, mat: matWeaponSteel });
+      wpart({ sx: 0.024, sy: 0.08, sz: 0.014, x: 0, y: 1.13, z: 0, mat: matWeaponSteel });
+      // Glowing golden fuller channel
+      wpart({ sx: 0.022, sy: 0.72, sz: 0.030, x: 0, y: 0.54, z: 0, mat: matGoldRune, name: "RuneFuller" });
     } else if (wType === "spear") {
       // 1. Long shaft
       wpart({ sx: 0.05, sy: 1.85, sz: 0.05, x: 0, y: 0.45, z: 0, mat: matWeaponWood, name: "Shaft" });
@@ -244,9 +270,68 @@ export function createVoxelAvatar({
     return wg;
   }
 
+  function createThirdPersonShield() {
+    const sg = new THREE.Group();
+    sg.name = "TP_Shield";
+    sg.layers.set(2);
+
+    function spart({ sx, sy, sz, x=0, y=0, z=0, mat=matWeaponSteel, name="" }) {
+      const m = new THREE.Mesh(box, mat);
+      m.scale.set(sx, sy, sz);
+      m.position.set(x, y, z);
+      if (name) m.name = name;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.layers.set(2);
+      sg.add(m);
+      return m;
+    }
+
+    // 1. Корпус щита
+    spart({ sx: 0.44, sy: 0.32, sz: 0.04, x: 0, y: 0.14, z: 0, mat: matWeaponDark });
+    spart({ sx: 0.38, sy: 0.28, sz: 0.038, x: 0, y: -0.12, z: 0, mat: matWeaponDark });
+    spart({ sx: 0.26, sy: 0.24, sz: 0.036, x: 0, y: -0.34, z: 0, mat: matWeaponDark });
+    spart({ sx: 0.14, sy: 0.18, sz: 0.034, x: 0, y: -0.50, z: 0, mat: matWeaponDark });
+
+    // 2. Стальной обод
+    spart({ sx: 0.48, sy: 0.042, sz: 0.048, x: 0, y: 0.31, z: 0, mat: matWeaponSteel });
+    spart({ sx: 0.040, sy: 0.44, sz: 0.046, x: -0.22, y: 0.12, z: 0, mat: matWeaponSteel });
+    spart({ sx: 0.040, sy: 0.44, sz: 0.046, x: 0.22, y: 0.12, z: 0, mat: matWeaponSteel });
+    spart({ sx: 0.036, sy: 0.36, sz: 0.044, x: -0.14, y: -0.30, z: 0, mat: matWeaponSteel });
+    spart({ sx: 0.036, sy: 0.36, sz: 0.044, x: 0.14, y: -0.30, z: 0, mat: matWeaponSteel });
+    spart({ sx: 0.052, sy: 0.08, sz: 0.048, x: 0, y: -0.56, z: 0, mat: matWeaponSteel });
+
+    // 3. Центральный умбон с шипом
+    spart({ sx: 0.18, sy: 0.18, sz: 0.06, x: 0, y: 0.02, z: -0.04, mat: matWeaponSteel });
+    spart({ sx: 0.10, sy: 0.10, sz: 0.08, x: 0, y: 0.02, z: -0.08, mat: matWeaponSteel });
+    spart({ sx: 0.04, sy: 0.04, sz: 0.08, x: 0, y: 0.02, z: -0.14, mat: matWeaponSteel });
+
+    // 4. Золотой солнечный рунный герб
+    spart({ sx: 0.034, sy: 0.54, sz: 0.046, x: 0, y: 0.0, z: -0.025, mat: matGoldRune });
+    spart({ sx: 0.32, sy: 0.034, sz: 0.046, x: 0, y: 0.08, z: -0.025, mat: matGoldRune });
+    spart({ sx: 0.15, sy: 0.15, sz: 0.044, x: 0, y: 0.02, z: -0.025, mat: matGoldRune });
+
+    // 5. Ремни сзади
+    spart({ sx: 0.18, sy: 0.045, sz: 0.045, x: 0, y: 0.10, z: 0.035, mat: matWeaponWood });
+    spart({ sx: 0.035, sy: 0.18, sz: 0.035, x: 0, y: -0.08, z: 0.045, mat: matWeaponDark });
+
+    return sg;
+  }
+
   let currentWeaponId = "spear";
   let activeWeaponMesh = createThirdPersonWeapon("spear");
   weaponAnchor.add(activeWeaponMesh);
+
+  // Крепление щита к левой руке
+  const shieldAnchor = new THREE.Group();
+  shieldAnchor.name = "ThirdPersonShieldAnchor";
+  shieldAnchor.position.set(0.08, -0.38, 0.04);
+  shieldAnchor.layers.set(2);
+  armL.add(shieldAnchor);
+
+  let activeShieldMesh = createThirdPersonShield();
+  shieldAnchor.add(activeShieldMesh);
+  shieldAnchor.visible = false;
 
   function setWeapon(wType) {
     if (!wType || wType === currentWeaponId) return;
@@ -254,6 +339,8 @@ export function createVoxelAvatar({
     if (activeWeaponMesh) weaponAnchor.remove(activeWeaponMesh);
     activeWeaponMesh = createThirdPersonWeapon(wType);
     weaponAnchor.add(activeWeaponMesh);
+
+    shieldAnchor.visible = (wType === "sword");
   }
 
   // Combat animation state
@@ -281,6 +368,10 @@ export function createVoxelAvatar({
     if (weaponAnchor.parent !== targetArmR) {
       targetArmR.add(weaponAnchor);
     }
+    const targetArmL = (g.voxMesh && g.voxMesh.armL) ? g.voxMesh.armL : armL;
+    if (shieldAnchor.parent !== targetArmL) {
+      targetArmL.add(shieldAnchor);
+    }
 
     // Default locomotion & breathing
     const breathe = Math.sin(state.t * 2.0) * 0.008;
@@ -304,6 +395,80 @@ export function createVoxelAvatar({
       if (state.moving > 0.05) {
         armRRotX += sway * 0.25;
         armLRotX += -sway * 0.25;
+      }
+    }
+
+    // Resting stance with Sword & Shield
+    if (currentWeaponId === "sword" && !combatAction) {
+      armRRotX = 0.45; armRRotY = -0.15; armRRotZ = 0.18;
+      armLRotX = 0.95; armLRotY = 0.45; armLRotZ = -0.22;
+      torsoRotY = -0.12;
+      if (state.moving > 0.05) {
+        armRRotX += sway * 0.20;
+        armLRotX += -sway * 0.20;
+      }
+    }
+
+    if (combatAction && combatAction.weapon === "sword") {
+      const p = Math.max(0, Math.min(1, combatAction.progress || 0));
+
+      if (combatAction.action === "block") {
+        const k = p * p * (3 - 2 * p);
+        armLRotX = 0.95 + 0.40 * k;
+        armLRotY = 0.45 - 0.90 * k;
+        armLRotZ = -0.22 + 0.45 * k;
+        armRRotX = 0.45 - 0.15 * k;
+        armRRotY = -0.15 + 0.25 * k;
+        armRRotZ = 0.18 - 0.10 * k;
+        torsoRotY = -0.12 + 0.24 * k;
+      } else if (combatAction.action === "bash") {
+        if (p < 0.40) {
+          const t = p / 0.40;
+          const k = t * t;
+          armLRotX = 1.35 - 0.65 * k;
+          armLRotY = -0.45 + 0.35 * k;
+          armLRotZ = 0.23 - 0.15 * k;
+          torsoRotY = 0.12 - 0.35 * k;
+          torsoRotX = 0.22 * k;
+        } else {
+          const t = (p - 0.40) / 0.60;
+          const k = 1 - t * (2 - t);
+          armLRotX = 1.35 * (1 - k) + 0.70 * k;
+          armLRotY = -0.45 * (1 - k) - 0.10 * k;
+          torsoRotY = 0.12 * (1 - k) - 0.23 * k;
+        }
+      } else if (combatAction.action === "slash_1") {
+        const t = p < 0.25 ? (p / 0.25) : ((p - 0.25) / 0.75);
+        if (p < 0.25) {
+          armRRotX = 0.45 + 0.45 * t;
+          armRRotY = -0.15 + 0.60 * t;
+          torsoRotY = -0.12 + 0.25 * t;
+        } else {
+          armRRotX = 0.90 - 0.95 * t;
+          armRRotY = 0.45 - 1.15 * t;
+          torsoRotY = 0.13 - 0.45 * t;
+        }
+      } else if (combatAction.action === "slash_2") {
+        const t = p < 0.22 ? (p / 0.22) : ((p - 0.22) / 0.78);
+        if (p < 0.22) {
+          armRRotX = 0.45 - 0.15 * t;
+          armRRotY = -0.15 - 0.75 * t;
+          torsoRotY = -0.12 - 0.35 * t;
+        } else {
+          armRRotX = 0.30 + 0.65 * t;
+          armRRotY = -0.90 + 1.45 * t;
+          torsoRotY = -0.47 + 0.65 * t;
+        }
+      } else if (combatAction.action === "slash_3") {
+        const t = p < 0.25 ? (p / 0.25) : ((p - 0.25) / 0.75);
+        if (p < 0.25) {
+          armRRotX = 0.45 - 0.30 * t;
+          armRRotZ = 0.18 + 0.15 * t;
+        } else {
+          armRRotX = 0.15 + 0.85 * t;
+          armRRotZ = 0.33 - 0.25 * t;
+          torsoRotX = 0.20 * Math.sin(t * Math.PI);
+        }
       }
     }
 
