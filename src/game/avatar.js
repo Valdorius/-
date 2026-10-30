@@ -428,17 +428,25 @@ export function createVoxelAvatar({
         armRRotY = -0.15 + 0.25 * k;
         armRRotZ = 0.18 - 0.10 * k;
         torsoRotY = -0.12 + 0.24 * k;
+      } else if (combatAction.action === "bash_charge") {
+        const k = p * p * (3 - 2 * p);
+        armLRotX = 1.35 + 0.20 * k;
+        armLRotY = -0.45 - 0.18 * k;
+        armLRotZ = 0.23 + 0.12 * k;
+        torsoRotY = 0.12 + 0.20 * k;
+        torsoRotX = -0.10 * k;
+        armRRotX = 0.30 - 0.10 * k;
       } else if (combatAction.action === "bash") {
-        if (p < 0.40) {
-          const t = p / 0.40;
-          const k = t * t;
-          armLRotX = 1.35 - 0.65 * k;
-          armLRotY = -0.45 + 0.35 * k;
-          armLRotZ = 0.23 - 0.15 * k;
-          torsoRotY = 0.12 - 0.35 * k;
-          torsoRotX = 0.22 * k;
+        if (p < 0.38) {
+          const t = p / 0.38;
+          const k = t * t * (3 - 2 * t);
+          armLRotX = 1.55 - 0.85 * k;
+          armLRotY = -0.63 + 0.50 * k;
+          armLRotZ = 0.35 - 0.25 * k;
+          torsoRotY = 0.32 - 0.55 * k;
+          torsoRotX = 0.25 * k;
         } else {
-          const t = (p - 0.40) / 0.60;
+          const t = (p - 0.38) / 0.62;
           const k = 1 - t * (2 - t);
           armLRotX = 1.35 * (1 - k) + 0.70 * k;
           armLRotY = -0.45 * (1 - k) - 0.10 * k;
@@ -579,22 +587,20 @@ export function createVoxelAvatar({
       const action = combatAction.action || "swing";
       const step = combatAction.comboStep || 0;
 
-      if (action === "thrust") {
-        // Deep Piercing Lunge (глубокий выпад)
-        if (p < 0.22) {
-          // Windup: оттяг назад, скрутка корпуса, замах копьем
-          const t = p / 0.22;
-          const k = t * t;
-          torsoRotX = -0.18 * k;
-          torsoRotY = -0.32 * k;
-          armRRotX = 0.55 - 0.35 * k;
-          armRRotY = -0.25 * k;
-          armLRotX = 0.75 + 0.20 * k;
-          legRRotX = -0.30 * k;
-          legLRotX = 0.25 * k;
-        } else if (p < 0.58) {
-          // Мощный стремительный выпад вперед с глубоким наклоном и выпрямлением рук
-          const t = (p - 0.22) / 0.36;
+      if (action === "charge") {
+        // Chambered windup: оттяг назад, скрутка корпуса, замах копьем
+        const k = p * p * (3 - 2 * p);
+        torsoRotX = -0.18 * k;
+        torsoRotY = -0.32 * k;
+        armRRotX = 0.55 - 0.35 * k;
+        armRRotY = -0.25 * k;
+        armLRotX = 0.75 + 0.20 * k;
+        legRRotX = -0.30 * k;
+        legLRotX = 0.25 * k;
+      } else if (action === "thrust") {
+        // Deep Piercing Lunge: мощный стремительный выпад вперед из заряженной позы
+        if (p < 0.38) {
+          const t = p / 0.38;
           const k = t * t * (3 - 2 * t);
           torsoRotX = -0.18 + 0.58 * k;
           torsoRotY = -0.32 + 0.50 * k;
@@ -608,7 +614,7 @@ export function createVoxelAvatar({
           torsoPosY = -0.12 * k;
         } else {
           // Возврат в исходную боевую стойку
-          const t = (p - 0.58) / 0.42;
+          const t = (p - 0.38) / 0.62;
           const k = 1 - t * (2 - t);
           torsoRotX = 0.40 * k;
           torsoRotY = 0.18 * k;

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_11";
+import { createFpsArms } from "./fps_arms.js?v=20261030_12";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -128,10 +128,14 @@ let cd = 0,
   let prevMouseDown = false;
   let spearHitSet = new Set();
   let spearThrustT = 0;
-  let spearThrustMax = 0.48;
+  let spearThrustMax = 0.40;
   let spearThrustCd = 0;
   let spearThrustHitTriggered = false;
   let spearThrustHitSet = new Set();
+  let spearCharging = false;
+  let spearCharge = 0;
+  let spearChargeCommitted = false;
+  const SPEAR_CHARGE_MAX = 0.38;
 
   // hammer state
   let hammerSwingT = 0;
@@ -159,9 +163,35 @@ let cd = 0,
   let shieldBlockT = 0; // 0..1 smooth transition
   let shieldParryTimer = 999;
   let shieldBashT = 0;
-  let shieldBashMax = 0.40;
+  let shieldBashMax = 0.38;
   let shieldBashHitTriggered = false;
   let shieldBashHitSet = new Set();
+  let shieldBashCharging = false;
+  let shieldBashCharge = 0;
+  let shieldBashCommitted = false;
+  const SHIELD_BASH_CHARGE_MAX = 0.35;
+
+  // Circular SVG charge HUD ring around crosshair
+  const ringEl = typeof document !== "undefined" ? document.getElementById("chargeRing") : null;
+  const circleEl = typeof document !== "undefined" ? document.getElementById("chargeCircle") : null;
+  const CIRCLE_CIRCUMFERENCE = 106.81;
+
+  function setChargeRing(p, color = "#00f0ff") {
+    if (!ringEl || !circleEl) return;
+    if (p <= 0.005) {
+      ringEl.style.opacity = "0";
+      return;
+    }
+    ringEl.style.opacity = "1";
+    circleEl.style.stroke = color;
+    const offset = Math.max(0, Math.min(CIRCLE_CIRCUMFERENCE, CIRCLE_CIRCUMFERENCE * (1 - p)));
+    circleEl.style.strokeDashoffset = offset.toFixed(1);
+    if (p >= 0.98) {
+      circleEl.style.filter = `drop-shadow(0 0 6px ${color})`;
+    } else {
+      circleEl.style.filter = "none";
+    }
+  }
 
   let prevRightMouseDown = false;
   let lastEnemiesRef = null;
@@ -180,7 +210,7 @@ let cd = 0,
   const defs = {
     spear: {
       name: "Руническая глефа",
-      hint: "Ближний бой. ЛКМ — рубящие комбо-свипы (3.35м). ПКМ — глубокий колющий выпад (пробитие брони, дальность 4.2м).",
+      hint: "Ближний бой. ЛКМ — рубящие комбо-свипы (3.35м). Удерживай ПКМ — зарядка глубокого выпада (пробитие брони, дальность 4.2м).",
       meleeRange: 3.35,
       dmg: 34,
       rate: 2.0,
@@ -189,7 +219,7 @@ let cd = 0,
       thrustDmg: 68
     },
     hammer: { name: "Рунический молот", hint: "Тяжелый сокрушитель. ЛКМ — размашистый сокрушительный свип (стан/нокаут). ПКМ — удар оземь (AoE-землетрясение).", meleeRange: 2.85, dmg: 58, rate: 1.25, arc: 2.30 },
-    sword: { name: "Меч и Щит", hint: "Авангард. ЛКМ — серия из 3 ударов (срез/бэкхенд/выпад). ПКМ — блок (80% защита) и идеальное парирование (0.25с). ПКМ+ЛКМ — удар щитом (стан толпы).", meleeRange: 2.65, dmg: 38, rate: 2.2, arc: 1.60 },
+    sword: { name: "Меч и Щит", hint: "Авангард. ЛКМ — серия из 3 ударов. ПКМ — блок (80% защита) и парирование. Удерживай ПКМ+ЛКМ — зарядка удара щитом (стан толпы).", meleeRange: 2.65, dmg: 38, rate: 2.2, arc: 1.60 },
     bow: { name: "Рунический лук", hint: "Дальний бой. Удерживай ЛКМ — натяжение и рунный заряд, отпусти — выстрел.", dmgMin: 22, dmgMax: 56, chargeTime: 0.85, speed: 24 },
     // Посох: медленный большой взрывной шар (чтобы читалось и было "опасно")
     staff: { name: "Посох", hint: "Магия. Медленная взрывная сфера с высоким уроном.", dmg: 34, rate: 1.35, speed: 9.0, splash: 2.20 }
@@ -1165,7 +1195,26 @@ let cd = 0,
     spearStreak = 0; spearStreakT = 0;
   }
 
+  function animateSpearCharge(p) {
+    const k = p * p * (3 - 2 * p);
+    // Chambered coil: deep pull back, aligned firmly with crosshair
+    hand.position.set(
+      baseHandPos.x - 0.08 * k,
+      baseHandPos.y + 0.04 * k,
+      baseHandPos.z + 0.16 * k
+    );
+    hand.rotation.set(
+      baseHandRot.x + 0.06 * k,
+      baseHandRot.y - 0.15 * k,
+      baseHandRot.z + 0.08 * k
+    );
+    if (spearAnim.runeMat) {
+      spearAnim.runeMat.emissiveIntensity = 2.0 + 3.5 * k;
+    }
+  }
+
   function startSpearThrust() {
+    spearThrustMax = 0.40;
     spearThrustT = spearThrustMax;
     spearThrustCd = 0.95; // 0.95s CD
     spearThrustHitTriggered = false;
@@ -1174,48 +1223,31 @@ let cd = 0,
   }
 
   function animateSpearThrust(p) {
-    if (p < 0.20) {
-      // 1. Взвод/оттяг: глефа оттягивается назад и выравнивается строго по прицелу
-      const t = p / 0.20;
+    if (p < 0.38) {
+      // 1. Мощный стремительный выпад вперед из заряженной стойки
+      const t = p / 0.38;
       const k = t * t * (3 - 2 * t);
       hand.position.set(
-        baseHandPos.x - 0.07 * k,
-        baseHandPos.y + 0.03 * k,
-        baseHandPos.z + 0.12 * k
+        baseHandPos.x - 0.08 + 0.04 * k,
+        baseHandPos.y + 0.04 - 0.03 * k,
+        baseHandPos.z + 0.16 - 0.98 * k
       );
       hand.rotation.set(
-        baseHandRot.x + 0.04 * k,
-        baseHandRot.y - 0.12 * k,
-        baseHandRot.z + 0.06 * k
+        baseHandRot.x + 0.06 - 0.08 * k,
+        baseHandRot.y - 0.15 + 0.17 * k,
+        baseHandRot.z + 0.08 - 0.10 * k
       );
       if (spearAnim.runeMat) {
-        spearAnim.runeMat.emissiveIntensity = 2.0 + 2.5 * k;
-      }
-    } else if (p < 0.50) {
-      // 2. Мощный стремительный пронзающий выпад вперед вдоль прицела
-      const t = (p - 0.20) / 0.30;
-      const k = t * t * (3 - 2 * t);
-      hand.position.set(
-        baseHandPos.x - 0.07 + 0.03 * k,
-        baseHandPos.y + 0.03 - 0.02 * k,
-        baseHandPos.z + 0.12 - 0.88 * k
-      );
-      hand.rotation.set(
-        baseHandRot.x + 0.04 - 0.06 * k,
-        baseHandRot.y - 0.12 + 0.14 * k,
-        baseHandRot.z + 0.06 - 0.08 * k
-      );
-      if (spearAnim.runeMat) {
-        spearAnim.runeMat.emissiveIntensity = 4.5;
+        spearAnim.runeMat.emissiveIntensity = 5.5;
       }
     } else {
-      // 3. Четкий возврат в боевую стойку
-      const t = (p - 0.50) / 0.50;
+      // 2. Четкий плавный возврат в исходную боевую стойку
+      const t = (p - 0.38) / 0.62;
       const k = 1 - t * (2 - t);
       hand.position.set(
         baseHandPos.x - 0.04 * k,
         baseHandPos.y + 0.01 * k,
-        baseHandPos.z - 0.76 * k
+        baseHandPos.z - 0.82 * k
       );
       hand.rotation.set(
         baseHandRot.x - 0.02 * k,
@@ -1223,7 +1255,7 @@ let cd = 0,
         baseHandRot.z - 0.02 * k
       );
       if (spearAnim.runeMat) {
-        spearAnim.runeMat.emissiveIntensity = 2.0 + 2.5 * k;
+        spearAnim.runeMat.emissiveIntensity = 2.0 + 3.5 * (1 - t);
       }
     }
   }
@@ -1689,53 +1721,121 @@ let cd = 0,
     cd = swordSwingMax * 0.45;
   }
 
+  function animateShieldBashCharge(p) {
+    const k = p * p * (3 - 2 * p);
+    // Chambered shield pull-back to chest with forward angle
+    shieldHand.position.set(
+      SHIELD_BLOCK_POS.x - 0.06 * k,
+      SHIELD_BLOCK_POS.y - 0.03 * k,
+      SHIELD_BLOCK_POS.z + 0.12 * k
+    );
+    shieldHand.rotation.set(
+      SHIELD_BLOCK_ROT.x + 0.12 * k,
+      SHIELD_BLOCK_ROT.y - 0.08 * k,
+      SHIELD_BLOCK_ROT.z + 0.06 * k
+    );
+    if (shieldAnim.runeMat) {
+      shieldAnim.runeMat.emissiveIntensity = 2.5 + 3.0 * k;
+    }
+    // Brace sword hand slightly during heavy shield windup
+    hand.position.set(
+      SWORD_BLOCK_POS.x + 0.03 * k,
+      SWORD_BLOCK_POS.y - 0.02 * k,
+      SWORD_BLOCK_POS.z + 0.04 * k
+    );
+    hand.rotation.set(
+      SWORD_BLOCK_ROT.x + 0.08 * k,
+      SWORD_BLOCK_ROT.y - 0.04 * k,
+      SWORD_BLOCK_ROT.z
+    );
+  }
+
   function startShieldBash() {
-    shieldBashMax = 0.40;
+    shieldBashMax = 0.38;
     shieldBashT = shieldBashMax;
     shieldBashHitTriggered = false;
     shieldBashHitSet.clear();
     cd = shieldBashMax + 0.10;
   }
 
-  function updateShield(dt) {
+  function updateShield(dt, mouseDown = false) {
     if (shieldBashT > 0) {
       shieldBashT -= dt;
       const p = 1 - shieldBashT / shieldBashMax;
       player?.avatar?.setCombatAction?.({ weapon: "sword", action: "bash", progress: p });
-      if (!shieldBashHitTriggered && p >= 0.32) {
+      if (!shieldBashHitTriggered && p >= 0.20) {
         shieldBashHitTriggered = true;
         executeShieldBashHit();
       }
       if (p < 0.36) {
         const t = p / 0.36;
-        const k = t * t;
+        const k = t * t * (3 - 2 * t);
         shieldHand.position.set(
-          SHIELD_BLOCK_POS.x + (0.02 - SHIELD_BLOCK_POS.x) * k,
-          SHIELD_BLOCK_POS.y + (-0.12 - SHIELD_BLOCK_POS.y) * k,
-          SHIELD_BLOCK_POS.z + (-0.56 - SHIELD_BLOCK_POS.z) * k
+          SHIELD_BLOCK_POS.x - 0.06 + (0.02 - (SHIELD_BLOCK_POS.x - 0.06)) * k,
+          SHIELD_BLOCK_POS.y - 0.03 + (-0.12 - (SHIELD_BLOCK_POS.y - 0.03)) * k,
+          SHIELD_BLOCK_POS.z + 0.12 + (-0.58 - (SHIELD_BLOCK_POS.z + 0.12)) * k
         );
         shieldHand.rotation.set(
-          SHIELD_BLOCK_ROT.x + (-0.10 - SHIELD_BLOCK_ROT.x) * k,
-          SHIELD_BLOCK_ROT.y + (0.0 - SHIELD_BLOCK_ROT.y) * k,
-          SHIELD_BLOCK_ROT.z + (0.0 - SHIELD_BLOCK_ROT.z) * k
+          SHIELD_BLOCK_ROT.x + 0.12 + (-0.10 - (SHIELD_BLOCK_ROT.x + 0.12)) * k,
+          SHIELD_BLOCK_ROT.y - 0.08 + (0.0 - (SHIELD_BLOCK_ROT.y - 0.08)) * k,
+          SHIELD_BLOCK_ROT.z + 0.06 + (0.0 - (SHIELD_BLOCK_ROT.z + 0.06)) * k
         );
+        if (shieldAnim.runeMat) {
+          shieldAnim.runeMat.emissiveIntensity = 5.5;
+        }
       } else {
         const t = (p - 0.36) / 0.64;
         const k = 1 - t * (2 - t);
         shieldHand.position.set(
           SHIELD_BLOCK_POS.x * (1 - k) + 0.02 * k,
           SHIELD_BLOCK_POS.y * (1 - k) - 0.12 * k,
-          SHIELD_BLOCK_POS.z * (1 - k) - 0.56 * k
+          SHIELD_BLOCK_POS.z * (1 - k) - 0.58 * k
         );
         shieldHand.rotation.set(
           SHIELD_BLOCK_ROT.x * (1 - k) - 0.10 * k,
           SHIELD_BLOCK_ROT.y * (1 - k),
           SHIELD_BLOCK_ROT.z * (1 - k)
         );
+        if (shieldAnim.runeMat) {
+          shieldAnim.runeMat.emissiveIntensity = 2.5 + 3.0 * (1 - t);
+        }
       }
       if (shieldBashT <= 0) {
         shieldBashT = 0;
         player?.avatar?.setCombatAction?.(null);
+      }
+    } else if (shieldBashCharging) {
+      if (!shieldBlocking) {
+        shieldBashCharging = false;
+        shieldBashCharge = 0;
+        shieldBashCommitted = false;
+        setChargeRing(0);
+      } else {
+        shieldBashCharge = Math.min(SHIELD_BASH_CHARGE_MAX, shieldBashCharge + dt);
+        const p = shieldBashCharge / SHIELD_BASH_CHARGE_MAX;
+        animateShieldBashCharge(p);
+        setChargeRing(p, "#ffb700");
+        player?.avatar?.setCombatAction?.({ weapon: "sword", action: "bash_charge", progress: p });
+
+        if (!mouseDown) {
+          if (p >= 0.70) {
+            shieldBashCharging = false;
+            shieldBashCharge = 0;
+            shieldBashCommitted = false;
+            setChargeRing(0);
+            startShieldBash();
+          } else if (!shieldBashCommitted) {
+            shieldBashCommitted = true;
+          }
+        }
+
+        if (shieldBashCommitted && p >= 1.0) {
+          shieldBashCharging = false;
+          shieldBashCharge = 0;
+          shieldBashCommitted = false;
+          setChargeRing(0);
+          startShieldBash();
+        }
       }
     } else if (shieldBlocking) {
       shieldBlockT = Math.min(1, shieldBlockT + dt * 7.5);
@@ -1898,6 +1998,9 @@ let cd = 0,
     spearThrustCd = 0;
     spearThrustHitTriggered = false;
     spearThrustHitSet.clear();
+    spearCharging = false;
+    spearCharge = 0;
+    spearChargeCommitted = false;
     hammerSwingT = 0;
     hammerSlamT = 0;
     hammerSlamCd = 0;
@@ -1917,6 +2020,10 @@ let cd = 0,
     swordHitSet.clear(); swordNextHitCrit = false;
     shieldBlocking = false; shieldBlockT = 0; shieldParryTimer = 999;
     shieldBashT = 0; shieldBashHitTriggered = false; shieldBashHitSet.clear();
+    shieldBashCharging = false;
+    shieldBashCharge = 0;
+    shieldBashCommitted = false;
+    setChargeRing(0);
 
     buildModel(w);
     if (w === "bow") setBowPull(0);
@@ -2019,7 +2126,7 @@ let cd = 0,
       if (rightJustPressed) {
         shieldParryTimer = 0;
       }
-      updateShield(dt);
+      updateShield(dt, mouseDown);
 
       if (swordSwingT > 0) {
         swordSwingT -= dt;
@@ -2039,15 +2146,17 @@ let cd = 0,
             startSwordSwing(swordComboNext);
           }
         }
-      } else {
+      } else if (!shieldBashCharging && shieldBashT <= 0) {
         if (!shieldBlocking) {
           player?.avatar?.setCombatAction?.(null);
           hand.rotation.copy(SWORD_REST_ROT);
           hand.position.copy(SWORD_REST_POS);
         }
 
-        if (shieldBlocking && justPressed && shieldBashT <= 0 && cd <= 0) {
-          startShieldBash();
+        if (shieldBlocking && justPressed && cd <= 0) {
+          shieldBashCharging = true;
+          shieldBashCharge = 0;
+          shieldBashCommitted = false;
         } else if (!shieldBlocking && justPressed && cd <= 0) {
           startSwordSwing(swordComboNext && swordComboGrace > 0 ? swordComboNext : 0);
         }
@@ -2070,7 +2179,7 @@ let cd = 0,
         animateSpearThrust(p);
         player?.avatar?.setCombatAction?.({ weapon: "spear", action: "thrust", progress: p });
 
-        if (!spearThrustHitTriggered && p >= 0.30) {
+        if (!spearThrustHitTriggered && p >= 0.20) {
           spearThrustHitTriggered = true;
           executeSpearThrustHit();
         }
@@ -2080,6 +2189,41 @@ let cd = 0,
           player?.avatar?.setCombatAction?.(null);
           hand.rotation.copy(baseHandRot);
           hand.position.copy(baseHandPos);
+        }
+      } else if (spearCharging) {
+        // Feint/Cancel charge into swing if player clicks LMB
+        if (justPressed) {
+          spearCharging = false;
+          spearCharge = 0;
+          spearChargeCommitted = false;
+          setChargeRing(0);
+          startSpearSwing(comboNextStep);
+        } else {
+          spearCharge = Math.min(SPEAR_CHARGE_MAX, spearCharge + dt);
+          const p = spearCharge / SPEAR_CHARGE_MAX;
+          animateSpearCharge(p);
+          setChargeRing(p, "#00f0ff");
+          player?.avatar?.setCombatAction?.({ weapon: "spear", action: "charge", progress: p });
+
+          if (!rightDown) {
+            if (p >= 0.70) {
+              spearCharging = false;
+              spearCharge = 0;
+              spearChargeCommitted = false;
+              setChargeRing(0);
+              startSpearThrust();
+            } else if (!spearChargeCommitted) {
+              spearChargeCommitted = true;
+            }
+          }
+
+          if (spearChargeCommitted && p >= 1.0) {
+            spearCharging = false;
+            spearCharge = 0;
+            spearChargeCommitted = false;
+            setChargeRing(0);
+            startSpearThrust();
+          }
         }
       } else if (swingT > 0) {
         swingT -= dt;
@@ -2115,11 +2259,15 @@ let cd = 0,
         }
 
         if (rightJustPressed && spearThrustCd <= 0 && cd <= 0) {
-          startSpearThrust();
+          spearCharging = true;
+          spearCharge = 0;
+          spearChargeCommitted = false;
         } else if (justPressed && cd <= 0) {
           startSpearSwing(comboNextStep);
         }
       }
+
+      if (comboGrace > 0) comboGrace -= dt;
     }
 
     if (weapon === "bow") {
@@ -2128,11 +2276,13 @@ let cd = 0,
         bowCharge = Math.min(defs.bow.chargeTime, bowCharge + dt);
         const p = bowCharge / defs.bow.chargeTime;
         setBowPull(p);
+        setChargeRing(p, "#00f0ff");
         // Draw animation: bring bow into shooting alignment
         hand.position.set(baseHandPos.x - 0.04 * p, baseHandPos.y + 0.02 * p, baseHandPos.z + 0.04 * p);
         hand.rotation.set(baseHandRot.x - 0.03 * p, baseHandRot.y - 0.02 * p, baseHandRot.z + 0.06 * p);
       } else if (bowCharging) {
         bowCharging = false;
+        setChargeRing(0);
         if (cd <= 0) fireBow();
         bowCharge = 0;
         setBowPull(0);

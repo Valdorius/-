@@ -10,7 +10,7 @@
   <title>Voxel Arena</title>
   <script>
     (function() {
-      const V = "20261030_11";
+      const V = "20261030_12";
       const u = new URL(window.location.href);
       if (u.searchParams.get("v") !== V) {
         u.searchParams.set("v", V);
@@ -98,10 +98,25 @@
     }
     #c{ box-shadow: inset 0 0 120px rgba(0,180,255,.25); }
 
+    /* Crosshair & Charge Ring HUD */
+    #crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:7;display:flex;align-items:center;justify-content:center;width:44px;height:44px}
+    #crossDot{width:4px;height:4px;background:rgba(255,255,255,.75);border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.85);position:absolute}
+    #chargeRing{width:44px;height:44px;transform:rotate(-90deg);opacity:0;transition:opacity .10s ease}
+    #chargeBg{fill:none;stroke:rgba(255,255,255,.14);stroke-width:2.5}
+    #chargeCircle{fill:none;stroke:#00f0ff;stroke-width:3;stroke-dasharray:106.8;stroke-dashoffset:106.8;stroke-linecap:round}
+
   </style>
 </head>
 <body>
   <canvas id="c"></canvas>
+
+  <div id="crosshair">
+    <div id="crossDot"></div>
+    <svg id="chargeRing" viewBox="0 0 44 44">
+      <circle id="chargeBg" cx="22" cy="22" r="17" />
+      <circle id="chargeCircle" cx="22" cy="22" r="17" />
+    </svg>
+  </div>
 
   <div id="top">
     <div><b>LV</b> <span id="lv">1</span>  •  <b>Wave</b> <span id="wave">1</span>  •  <b>Kills</b> <span id="kills">0</span></div>
@@ -110,7 +125,7 @@
 
   <div id="hint">
     Кликни по экрану чтобы захватить мышь. <kbd>WASD</kbd> движение, <kbd>Shift</kbd> бег, <kbd>Space</kbd> прыжок.
-    <b>Меч</b>: ЛКМ. <b>Лук</b>: удерживай ЛКМ → отпусти. <b>Посох</b>: удерживай ЛКМ.
+    <b>Глефа</b>: ЛКМ комбо, удерживай ПКМ зарядка выпада. <b>Меч</b>: ЛКМ комбо, ПКМ блок, блок+удерживай ЛКМ зарядка удара щитом. <b>Лук</b>: удерживай ЛКМ.
   </div>
 
   <div id="audiohud"></div>
@@ -152,6 +167,6 @@
 
   
 
-  <script type="module" src="./src/main.js?v=20261030_11"></script>
+  <script type="module" src="./src/main.js?v=20261030_12"></script>
 </body>
 </html>
