@@ -5,15 +5,18 @@ export function createProjectiles({ engine, world, fx }){
   const { scene } = engine;
   const list = [];
 
-  // Player projectiles: Heavy Runic Broadhead Arrow
-  const shaftGeo = new THREE.BoxGeometry(0.022, 0.022, 0.54);
-  const headGeo  = new THREE.BoxGeometry(0.065, 0.020, 0.12);
-  const fletchGeo= new THREE.BoxGeometry(0.075, 0.016, 0.14);
+  // Player projectiles: Monolithic Vanguard Arrow (Concept 4)
+  const shaftGeo = new THREE.BoxGeometry(0.018, 0.018, 0.60);
+  const headGeo  = new THREE.BoxGeometry(0.055, 0.018, 0.12);
+  const headGlowGeo = new THREE.BoxGeometry(0.024, 0.014, 0.08);
+  const fletchGeo= new THREE.BoxGeometry(0.006, 0.042, 0.10);
+  const fletchSideGeo= new THREE.BoxGeometry(0.038, 0.020, 0.10);
   const boltGeo  = new THREE.BoxGeometry(0.10,0.10,0.24);
 
-  const matArrowShaft = new THREE.MeshStandardMaterial({ color: 0x241812, roughness:0.85 });
-  const matArrowHead  = new THREE.MeshStandardMaterial({ color: 0xd2dcfa, roughness:0.35, metalness:0.65, emissive: 0x00d8ff, emissiveIntensity: 0.85 });
-  const matFletch     = new THREE.MeshBasicMaterial({ color: 0x00e5ff });
+  const matArrowShaft = new THREE.MeshStandardMaterial({ color: 0x181e2a, roughness:0.45, metalness:0.35 });
+  const matArrowHead  = new THREE.MeshStandardMaterial({ color: 0xa4bddc, roughness:0.20, metalness:0.85, emissive: 0x00d8ff, emissiveIntensity: 0.60 });
+  const matArrowGlow  = new THREE.MeshBasicMaterial({ color: 0x80f8ff });
+  const matFletch     = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
   const matBolt       = new THREE.MeshStandardMaterial({ color: 0xbda7ff, roughness:0.45, metalness:0.05, emissive:0x5533aa, emissiveIntensity:0.65 });
 
   // Red spell (player staff)
@@ -34,10 +37,18 @@ export function createProjectiles({ engine, world, fx }){
       const g = new THREE.Group();
       const shaft = new THREE.Mesh(shaftGeo, matArrowShaft);
       const head  = new THREE.Mesh(headGeo, matArrowHead);
+      head.position.z = -0.28;
+      const headGlow = new THREE.Mesh(headGlowGeo, matArrowGlow);
+      headGlow.position.z = -0.29;
       const f1    = new THREE.Mesh(fletchGeo, matFletch);
-      head.position.z = -0.22;
-      f1.position.z   =  0.18;
-      g.add(shaft, head, f1);
+      f1.position.set(0, 0.016, 0.22);
+      const f2    = new THREE.Mesh(fletchSideGeo, matFletch);
+      f2.position.set(0.016, -0.008, 0.22);
+      f2.rotation.z = -Math.PI / 6;
+      const f3    = new THREE.Mesh(fletchSideGeo, matFletch);
+      f3.position.set(-0.016, -0.008, 0.22);
+      f3.rotation.z = Math.PI / 6;
+      g.add(shaft, head, headGlow, f1, f2, f3);
       return g;
     }
     if (kind === "bolt"){

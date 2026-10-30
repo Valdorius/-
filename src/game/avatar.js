@@ -263,11 +263,21 @@ export function createVoxelAvatar({
       wpart({ sx: 0.07, sy: 0.10, sz: 0.07, x: 0, y: -0.66, z: 0, mat: matWeaponDark, name: "Pommel" });
       wpart({ sx: 0.03, sy: 0.08, sz: 0.03, x: 0, y: -0.74, z: 0, mat: matWeaponSteel, name: "RearSpike" });
     } else if (wType === "bow") {
-      // Curved runic bow stave
-      wpart({ sx: 0.05, sy: 1.30, sz: 0.12, x: 0, y: 0.20, z: 0.05, mat: matWeaponWood, name: "Stave" });
-      wpart({ sx: 0.06, sy: 0.25, sz: 0.06, x: 0, y: 0.20, z: 0.05, mat: matWeaponDark, name: "Grip" });
-      wpart({ sx: 0.055, sy: 0.50, sz: 0.03, x: 0, y: 0.45, z: 0.08, mat: matCyanRune, name: "TopRune" });
-      wpart({ sx: 0.055, sy: 0.50, sz: 0.03, x: 0, y: -0.05, z: 0.08, mat: matCyanRune, name: "BotRune" });
+      // Monolithic Vanguard Recurve Bow (Concept 4)
+      wpart({ sx: 0.046, sy: 0.22, sz: 0.054, x: 0, y: 0.20, z: 0.02, mat: matWeaponDark, name: "Grip" });
+      wpart({ sx: 0.020, sy: 0.16, sz: 0.014, x: 0, y: 0.20, z: 0.048, mat: matCyanRune, name: "CoreNode" });
+      // Upper limb
+      wpart({ sx: 0.054, sy: 0.26, sz: 0.055, x: 0, y: 0.42, z: 0.045, mat: matWeaponDark, rot: [-0.14, 0, 0], name: "U1" });
+      wpart({ sx: 0.046, sy: 0.16, sz: 0.042, x: 0, y: 0.58, z: 0.095, mat: matWeaponSteel, rot: [-0.35, 0, 0], name: "U2_Chevron" });
+      wpart({ sx: 0.044, sy: 0.32, sz: 0.045, x: 0, y: 0.76, z: 0.035, mat: matWeaponDark, rot: [0.35, 0, 0], name: "U3" });
+      wpart({ sx: 0.034, sy: 0.12, sz: 0.046, x: 0, y: 0.94, z: -0.05, mat: matWeaponSteel, rot: [0.65, 0, 0], name: "TopTip" });
+      wpart({ sx: 0.018, sy: 0.70, sz: 0.016, x: 0, y: 0.58, z: 0.075, mat: matCyanRune, name: "TopEnergy" });
+      // Lower limb
+      wpart({ sx: 0.054, sy: 0.26, sz: 0.055, x: 0, y: -0.02, z: 0.045, mat: matWeaponDark, rot: [0.14, 0, 0], name: "D1" });
+      wpart({ sx: 0.046, sy: 0.16, sz: 0.042, x: 0, y: -0.18, z: 0.095, mat: matWeaponSteel, rot: [0.35, 0, 0], name: "D2_Chevron" });
+      wpart({ sx: 0.044, sy: 0.32, sz: 0.045, x: 0, y: -0.36, z: 0.035, mat: matWeaponDark, rot: [-0.35, 0, 0], name: "D3" });
+      wpart({ sx: 0.034, sy: 0.12, sz: 0.046, x: 0, y: -0.54, z: -0.05, mat: matWeaponSteel, rot: [-0.65, 0, 0], name: "BotTip" });
+      wpart({ sx: 0.018, sy: 0.70, sz: 0.016, x: 0, y: -0.18, z: 0.075, mat: matCyanRune, name: "BotEnergy" });
     } else if (wType === "staff") {
       // Magic crystal staff
       wpart({ sx: 0.05, sy: 1.55, sz: 0.05, x: 0, y: 0.35, z: 0, mat: matWeaponWood, name: "Shaft" });
@@ -413,6 +423,17 @@ export function createVoxelAvatar({
       if (state.moving > 0.05) {
         armRRotX += sway * 0.20;
         armLRotX += -sway * 0.20;
+      }
+    }
+
+    // Resting stance with Monolithic Vanguard Bow
+    if (currentWeaponId === "bow" && !combatAction) {
+      armLRotX = 0.65; armLRotY = 0.20; armLRotZ = -0.18;
+      armRRotX = 0.40; armRRotY = -0.15; armRRotZ = 0.15;
+      torsoRotY = -0.10;
+      if (state.moving > 0.05) {
+        armLRotX += sway * 0.20;
+        armRRotX += -sway * 0.20;
       }
     }
 
@@ -667,6 +688,18 @@ export function createVoxelAvatar({
           torsoRotY = (step === 0 ? 0.50 : -0.50) * k;
         }
       }
+    } else if (combatAction && combatAction.weapon === "bow") {
+      const p = Math.max(0, Math.min(1, combatAction.progress || 0));
+      // Archer draw stance: left arm extends forward with bow, right arm draws string back
+      const k = p * p * (3 - 2 * p);
+      torsoRotY = 0.42 * k;
+      torsoRotX = -0.06 * k;
+      armLRotX = 1.35 * k + 0.65 * (1 - k);
+      armLRotY = -0.28 * k + 0.20 * (1 - k);
+      armLRotZ = -0.10 * k - 0.18 * (1 - k);
+      armRRotX = 0.85 * k + 0.40 * (1 - k);
+      armRRotY = 0.38 * k - 0.15 * (1 - k);
+      armRRotZ = 0.22 * k + 0.15 * (1 - k);
     } else {
       // Locomotion sway blended into arm swing when moving
       if (state.moving > 0.05) {

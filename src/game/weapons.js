@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clamp } from "../core/math.js";
 import { createPixelWoodTexture } from "./textures.js";
-import { createFpsArms } from "./fps_arms.js?v=20261030_12";
+import { createFpsArms } from "./fps_arms.js?v=20261030_13";
 
 // ВНИМАНИЕ: это файл-замена. Тут ОДНО объявление spawnProjectile (без дубля).
 
@@ -39,6 +39,10 @@ export function createWeapons({ engine, input, player, world, fx, progression=nu
 
   const SWORD_BLOCK_POS  = new THREE.Vector3(0.20, -0.28, -0.34);
   const SWORD_BLOCK_ROT  = new THREE.Euler(0.25, -0.10, 0.0);
+
+  // Боевая позиция для авангардного рунического лука
+  const BOW_REST_POS = new THREE.Vector3(0.24, -0.25, -0.42);
+  const BOW_REST_ROT = new THREE.Euler(0.15, -0.06, -0.08);
 
   // Первоклассный риг воксельных рук от первого лица
   const fpsArms = createFpsArms({ camera });
@@ -220,7 +224,7 @@ let cd = 0,
     },
     hammer: { name: "Рунический молот", hint: "Тяжелый сокрушитель. ЛКМ — размашистый сокрушительный свип (стан/нокаут). ПКМ — удар оземь (AoE-землетрясение).", meleeRange: 2.85, dmg: 58, rate: 1.25, arc: 2.30 },
     sword: { name: "Меч и Щит", hint: "Авангард. ЛКМ — серия из 3 ударов. ПКМ — блок (80% защита) и парирование. Удерживай ПКМ+ЛКМ — зарядка удара щитом (стан толпы).", meleeRange: 2.65, dmg: 38, rate: 2.2, arc: 1.60 },
-    bow: { name: "Рунический лук", hint: "Дальний бой. Удерживай ЛКМ — натяжение и рунный заряд, отпусти — выстрел.", dmgMin: 22, dmgMax: 56, chargeTime: 0.85, speed: 24 },
+    bow: { name: "Авангардный рунический лук", hint: "Дальний бой. Удерживай ЛКМ — натяжение монолитного лука и рунный заряд, отпусти — выстрел.", dmgMin: 22, dmgMax: 56, chargeTime: 0.85, speed: 24 },
     // Посох: медленный большой взрывной шар (чтобы читалось и было "опасно")
     staff: { name: "Посох", hint: "Магия. Медленная взрывная сфера с высоким уроном.", dmg: 34, rate: 1.35, speed: 9.0, splash: 2.20 }
   };
@@ -675,140 +679,167 @@ let cd = 0,
 
       const g = new THREE.Group();
 
-      const bowWoodTex = createPixelWoodTexture();
-      bowWoodTex.repeat.set(1, 4);
-
-      const darkWood = new THREE.MeshStandardMaterial({ map: bowWoodTex, roughness: 0.86 });
-      const wrap = new THREE.MeshStandardMaterial({ color: 0x221610, roughness: 0.95 });
-      const steel = new THREE.MeshStandardMaterial({ color: 0xc4d2e8, roughness: 0.35, metalness: 0.65 });
-      const darkSteel = new THREE.MeshStandardMaterial({ color: 0x485264, roughness: 0.60, metalness: 0.45 });
-      const runeMat = new THREE.MeshStandardMaterial({
-        color: 0x00f5ff,
-        emissive: 0x00d8ff,
-        emissiveIntensity: 1.2,
-        roughness: 0.25,
-        metalness: 0.15
+      const obsidianMat = new THREE.MeshStandardMaterial({ color: 0x181e2a, roughness: 0.45, metalness: 0.35 });
+      const facetMat    = new THREE.MeshStandardMaterial({ color: 0x283244, roughness: 0.35, metalness: 0.50 });
+      const alloyMat    = new THREE.MeshStandardMaterial({ color: 0x364052, roughness: 0.30, metalness: 0.70 });
+      const steelEdge   = new THREE.MeshStandardMaterial({ color: 0xa4bddc, roughness: 0.20, metalness: 0.85 });
+      const gripWrap    = new THREE.MeshStandardMaterial({ color: 0x141820, roughness: 0.88, metalness: 0.05 });
+      const cyanRuneMat = new THREE.MeshStandardMaterial({
+        color: 0x00f0ff,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 2.2,
+        roughness: 0.15,
+        metalness: 0.10
       });
-      bowAnim.runeMats.push(runeMat);
+      const cyanGlowMat = new THREE.MeshStandardMaterial({
+        color: 0x80f8ff,
+        emissive: 0x00f5ff,
+        emissiveIntensity: 3.0,
+        roughness: 0.10,
+        metalness: 0.05
+      });
+      bowAnim.runeMats.push(cyanRuneMat, cyanGlowMat);
 
-      // 1. Массивная эргономичная рукоять (тяжёлый боевой райзер)
-      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.038, 0.22, 8), wrap);
-      g.add(grip);
+      // --- 1. Riser & Grip (Центральная монолитная рукоять) ---
+      // Central ergonomic grip core
+      g.add(box(0.046, 0.20, 0.054, 0, 0, 0.015, gripWrap));
+      // Angled geometric facet cheeks
+      g.add(box(0.040, 0.18, 0.024, 0, 0, -0.015, facetMat));
+      // Alloy brackets top & bottom of grip
+      g.add(box(0.056, 0.025, 0.062, 0, 0.105, 0.015, alloyMat));
+      g.add(box(0.056, 0.025, 0.062, 0, -0.105, 0.015, alloyMat));
+      // Arrow shelf (sleek angular cutout on right side)
+      g.add(box(0.032, 0.016, 0.065, 0.028, 0.020, 0.025, alloyMat));
+      // Riser center cyan energy core node
+      g.add(box(0.020, 0.14, 0.014, 0, 0, 0.038, cyanRuneMat));
 
-      // Металлические кованые ферулы-упоры на рукояти
-      const ringTop = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.028, 8), darkSteel);
-      ringTop.position.set(0, 0.115, 0);
-      g.add(ringTop);
-      const ringBot = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.028, 8), darkSteel);
-      ringBot.position.set(0, -0.115, 0);
-      g.add(ringBot);
+      // --- 2. Upper Limb (Верхнее граненое плечо) ---
+      // Segment U1 (Riser transition, angled forward towards +Z)
+      const u1 = box(0.056, 0.16, 0.058, 0, 0.18, 0.038, obsidianMat);
+      u1.rotation.x = 0.16;
+      const u1_e = box(0.020, 0.15, 0.014, 0, 0.18, 0.062, cyanRuneMat);
+      u1_e.rotation.x = 0.16;
+      const u1_a = box(0.058, 0.15, 0.015, 0, 0.18, 0.015, alloyMat);
+      u1_a.rotation.x = 0.16;
+      g.add(u1, u1_e, u1_a);
 
-      // Полочка под стрелу
-      const arrowShelf = box(0.040, 0.018, 0.060, 0.030, 0.02, 0.01, darkSteel);
-      g.add(arrowShelf);
+      // Segment U2 (Mid-limb chevron wedge - prominent aggressive forward chevron in Concept 4!)
+      const u2 = box(0.052, 0.18, 0.060, 0, 0.34, 0.082, obsidianMat);
+      u2.rotation.x = -0.10;
+      const u2_w = box(0.044, 0.12, 0.038, 0, 0.35, 0.125, facetMat);
+      u2_w.rotation.x = -0.35;
+      const u2_we = box(0.018, 0.11, 0.012, 0, 0.35, 0.142, cyanGlowMat);
+      u2_we.rotation.x = -0.35;
+      const u2_e = box(0.020, 0.17, 0.014, 0, 0.34, 0.106, cyanRuneMat);
+      u2_e.rotation.x = -0.10;
+      g.add(u2, u2_w, u2_we, u2_e);
 
-      // 2. Верхнее плечо (мощное, широкое, армированное)
-      const u1 = box(0.068, 0.22, 0.052, 0, 0.21, 0.03, darkWood);
-      u1.rotation.x = -0.14;
-      const u2 = box(0.062, 0.22, 0.048, 0, 0.40, 0.07, darkWood);
-      u2.rotation.x = 0.06;
-      const u3 = box(0.054, 0.20, 0.042, 0, 0.58, 0.06, darkWood);
-      u3.rotation.x = 0.26;
-      const u4 = box(0.046, 0.16, 0.038, 0, 0.72, -0.01, darkWood);
-      u4.rotation.x = 0.46;
-      g.add(u1, u2, u3, u4);
+      // Segment U3 (Recurve transition, sweeping backward towards -Z)
+      const u3 = box(0.046, 0.18, 0.050, 0, 0.51, 0.075, obsidianMat);
+      u3.rotation.x = -0.32;
+      const u3_e = box(0.018, 0.17, 0.014, 0, 0.51, 0.096, cyanRuneMat);
+      u3_e.rotation.x = -0.32;
+      const u3_a = box(0.048, 0.16, 0.015, 0, 0.51, 0.052, alloyMat);
+      u3_a.rotation.x = -0.32;
+      g.add(u3, u3_e, u3_a);
 
-      // Стальная защитная полоса на спине верхнего плеча
-      g.add(box(0.038, 0.64, 0.016, 0, 0.48, 0.06, darkSteel));
+      // Segment U4 (Outer limb, sweeping recurve back and up)
+      const u4 = box(0.040, 0.16, 0.042, 0, 0.66, 0.015, obsidianMat);
+      u4.rotation.x = -0.54;
+      const u4_e = box(0.018, 0.15, 0.014, 0, 0.66, 0.034, cyanRuneMat);
+      u4_e.rotation.x = -0.54;
+      g.add(u4, u4_e);
 
-      // Крупные светящиеся рунические плиты на лицевой стороне
-      const ur1 = box(0.046, 0.070, 0.016, 0, 0.28, 0.058, runeMat);
-      const ur2 = box(0.042, 0.070, 0.016, 0, 0.43, 0.096, runeMat);
-      const ur3 = box(0.036, 0.065, 0.016, 0, 0.57, 0.082, runeMat);
-      g.add(ur1, ur2, ur3);
+      // Top Tip / Nock (Sharp angular hook holding string)
+      const tipTopMesh = box(0.034, 0.10, 0.046, 0, 0.77, -0.060, steelEdge);
+      tipTopMesh.rotation.x = -0.68;
+      const tipTop_e = box(0.016, 0.08, 0.014, 0, 0.78, -0.048, cyanGlowMat);
+      tipTop_e.rotation.x = -0.68;
+      g.add(tipTopMesh, tipTop_e);
 
-      // Массивный верхний роговой/стальной зацеп под тетиву
-      const tipTop = new THREE.Mesh(new THREE.BoxGeometry(0.044, 0.080, 0.055), steel);
-      tipTop.position.set(0, 0.78, -0.06);
-      tipTop.rotation.x = 0.55;
-      g.add(tipTop);
+      // --- 3. Lower Limb (Нижнее граненое плечо - зеркально-симметричное) ---
+      // Segment D1
+      const d1 = box(0.056, 0.16, 0.058, 0, -0.18, 0.038, obsidianMat);
+      d1.rotation.x = -0.16;
+      const d1_e = box(0.020, 0.15, 0.014, 0, -0.18, 0.062, cyanRuneMat);
+      d1_e.rotation.x = -0.16;
+      const d1_a = box(0.058, 0.15, 0.015, 0, -0.18, 0.015, alloyMat);
+      d1_a.rotation.x = -0.16;
+      g.add(d1, d1_e, d1_a);
 
-      // 3. Нижнее плечо (симметричное массивное)
-      const d1 = box(0.068, 0.22, 0.052, 0, -0.21, 0.03, darkWood);
-      d1.rotation.x = 0.14;
-      const d2 = box(0.062, 0.22, 0.048, 0, -0.40, 0.07, darkWood);
-      d2.rotation.x = -0.06;
-      const d3 = box(0.054, 0.20, 0.042, 0, -0.58, 0.06, darkWood);
-      d3.rotation.x = -0.26;
-      const d4 = box(0.046, 0.16, 0.038, 0, -0.72, -0.01, darkWood);
-      d4.rotation.x = -0.46;
-      g.add(d1, d2, d3, d4);
+      // Segment D2 (Mid-limb chevron wedge)
+      const d2 = box(0.052, 0.18, 0.060, 0, -0.34, 0.082, obsidianMat);
+      d2.rotation.x = 0.10;
+      const d2_w = box(0.044, 0.12, 0.038, 0, -0.35, 0.125, facetMat);
+      d2_w.rotation.x = 0.35;
+      const d2_we = box(0.018, 0.11, 0.012, 0, -0.35, 0.142, cyanGlowMat);
+      d2_we.rotation.x = 0.35;
+      const d2_e = box(0.020, 0.17, 0.014, 0, -0.34, 0.106, cyanRuneMat);
+      d2_e.rotation.x = 0.10;
+      g.add(d2, d2_w, d2_we, d2_e);
 
-      // Стальная защитная полоса на спине нижнего плеча
-      g.add(box(0.038, 0.64, 0.016, 0, -0.48, 0.06, darkSteel));
+      // Segment D3
+      const d3 = box(0.046, 0.18, 0.050, 0, -0.51, 0.075, obsidianMat);
+      d3.rotation.x = 0.32;
+      const d3_e = box(0.018, 0.17, 0.014, 0, -0.51, 0.096, cyanRuneMat);
+      d3_e.rotation.x = 0.32;
+      const d3_a = box(0.048, 0.16, 0.015, 0, -0.51, 0.052, alloyMat);
+      d3_a.rotation.x = 0.32;
+      g.add(d3, d3_e, d3_a);
 
-      // Крупные светящиеся рунические плиты на нижнем плече
-      const dr1 = box(0.046, 0.070, 0.016, 0, -0.28, 0.058, runeMat);
-      const dr2 = box(0.042, 0.070, 0.016, 0, -0.43, 0.096, runeMat);
-      const dr3 = box(0.036, 0.065, 0.016, 0, -0.57, 0.082, runeMat);
-      g.add(dr1, dr2, dr3);
+      // Segment D4
+      const d4 = box(0.040, 0.16, 0.042, 0, -0.66, 0.015, obsidianMat);
+      d4.rotation.x = 0.54;
+      const d4_e = box(0.018, 0.15, 0.014, 0, -0.66, 0.034, cyanRuneMat);
+      d4_e.rotation.x = 0.54;
+      g.add(d4, d4_e);
 
-      // Массивный нижний роговой/стальной зацеп под тетиву
-      const tipBot = new THREE.Mesh(new THREE.BoxGeometry(0.044, 0.080, 0.055), steel);
-      tipBot.position.set(0, -0.78, -0.06);
-      tipBot.rotation.x = -0.55;
-      g.add(tipBot);
+      // Bottom Tip / Nock
+      const tipBotMesh = box(0.034, 0.10, 0.046, 0, -0.77, -0.060, steelEdge);
+      tipBotMesh.rotation.x = 0.68;
+      const tipBot_e = box(0.016, 0.08, 0.014, 0, -0.78, -0.048, cyanGlowMat);
+      tipBot_e.rotation.x = 0.68;
+      g.add(tipBotMesh, tipBot_e);
 
-      // Точки привязки тетивы
-      bowAnim.tipTop.set(0, 0.78, -0.06);
-      bowAnim.tipBot.set(0, -0.78, -0.06);
-      bowAnim.nock.set(0, 0.01, -0.02);
+      // --- 4. Radiant Energy Bowstring ---
+      bowAnim.tipTop.set(0, 0.77, -0.060);
+      bowAnim.tipBot.set(0, -0.77, -0.060);
+      bowAnim.nock.set(0, 0.018, -0.018);
 
-      // 4. Светящаяся магическая тетива
       bowAnim.stringGeo = new THREE.BufferGeometry();
       bowAnim.stringGeo.setFromPoints([bowAnim.tipTop.clone(), bowAnim.nock.clone(), bowAnim.tipBot.clone()]);
       bowAnim.stringLine = new THREE.Line(
         bowAnim.stringGeo,
-        new THREE.LineBasicMaterial({ color: 0x99f0ff, linewidth: 2 })
+        new THREE.LineBasicMaterial({ color: 0x00f5ff, linewidth: 2.5 })
       );
       g.add(bowAnim.stringLine);
 
-      // 5. Тяжёлая руническая стрела
+      // --- 5. Monolithic Vanguard Arrow ---
       const arrowGroup = new THREE.Group();
-
-      // Массивное древко стрелы
-      const arrowShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.72, 8), darkWood);
-      arrowShaft.rotation.x = Math.PI / 2;
-      arrowShaft.position.set(0, 0, 0.36);
-      arrowGroup.add(arrowShaft);
-
-      // Широкий стальной боевой наконечник
-      arrowGroup.add(box(0.065, 0.018, 0.12, 0, 0, 0.72, steel));
-      arrowGroup.add(box(0.035, 0.012, 0.08, 0, 0, 0.78, steel));
-      // Светящееся руническое ядро в наконечнике
-      arrowGroup.add(box(0.028, 0.024, 0.07, 0, 0, 0.72, runeMat));
-
-      // Крупное тройное оперение
-      const fletchMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-      arrowGroup.add(box(0.006, 0.052, 0.14, 0, 0.032, 0.09, fletchMat));
-      const fL = box(0.046, 0.006, 0.14, -0.026, -0.016, 0.09, fletchMat);
-      fL.rotation.z = Math.PI / 6;
-      arrowGroup.add(fL);
-      const fR = box(0.046, 0.006, 0.14, 0.026, -0.016, 0.09, fletchMat);
+      // Main faceted shaft
+      arrowGroup.add(box(0.018, 0.018, 0.62, 0, 0.018, 0.22, obsidianMat));
+      // Energy core spine along arrow
+      arrowGroup.add(box(0.008, 0.006, 0.58, 0, 0.026, 0.22, cyanRuneMat));
+      // Diamond-faceted steel broadhead
+      arrowGroup.add(box(0.055, 0.018, 0.12, 0, 0.018, 0.54, steelEdge));
+      arrowGroup.add(box(0.025, 0.014, 0.08, 0, 0.018, 0.56, cyanGlowMat));
+      // 3-Blade faceted crystalline fletchings
+      arrowGroup.add(box(0.006, 0.042, 0.10, 0, 0.042, -0.06, cyanGlowMat));
+      const fR = box(0.038, 0.020, 0.10, 0.022, 0.006, -0.06, cyanGlowMat);
       fR.rotation.z = -Math.PI / 6;
       arrowGroup.add(fR);
-
-      // Стальной хвостовик
-      arrowGroup.add(box(0.018, 0.018, 0.030, 0, 0, 0.01, darkSteel));
+      const fL = box(0.038, 0.020, 0.10, -0.022, 0.006, -0.06, cyanGlowMat);
+      fL.rotation.z = Math.PI / 6;
+      arrowGroup.add(fL);
 
       // Muzzle
       bowAnim.muzzle = new THREE.Object3D();
-      bowAnim.muzzle.position.set(0, 0, 0.82);
+      bowAnim.muzzle.position.set(0, 0.018, 0.66);
       arrowGroup.add(bowAnim.muzzle);
 
       // Якоря для воксельных рук от 1-го лица
       bowAnim.gripLeft = new THREE.Object3D();
-      bowAnim.gripLeft.position.set(0, 0, 0);
+      bowAnim.gripLeft.position.set(0, 0, 0.015);
       g.add(bowAnim.gripLeft);
 
       bowAnim.gripRight = new THREE.Object3D();
@@ -820,12 +851,12 @@ let cd = 0,
       bowAnim.arrow = arrowGroup;
       g.add(arrowGroup);
 
-      g.scale.set(1.20, 1.20, 1.20);
+      g.scale.set(1.22, 1.22, 1.22);
       model.add(g);
 
-      // Диагональный комфортный боевой хват (массивный лук, идеальный обзор)
-      model.rotation.set(0.04, Math.PI * 0.98, -0.36);
-      model.position.set(0.20, 0.02, 0.02);
+      // Диагональный стильный боевой хват авангардного лука
+      model.rotation.set(0.05, Math.PI * 0.98, -0.32);
+      model.position.set(0.04, 0.02, 0.04);
     }
 
     if (w === "staff") {
@@ -896,7 +927,7 @@ let cd = 0,
     if (!bowAnim.stringGeo || !bowAnim.stringLine) return;
 
     const pull = clamp(p, 0, 1);
-    bowAnim.nock.z = -0.02 - 0.28 * pull;
+    bowAnim.nock.z = -0.018 - 0.28 * pull;
 
     if (bowAnim.arrow) {
       bowAnim.arrow.position.set(bowAnim.nock.x, bowAnim.nock.y, bowAnim.nock.z);
@@ -905,9 +936,9 @@ let cd = 0,
     bowAnim.stringGeo.setFromPoints([bowAnim.tipTop.clone(), bowAnim.nock.clone(), bowAnim.tipBot.clone()]);
     bowAnim.stringGeo.attributes.position.needsUpdate = true;
 
-    // Flare up runic inlays on limbs as bow is drawn
+    // Flare up runic inlays on limbs as bow is drawn (from 2.2 to 5.5)
     if (bowAnim.runeMats) {
-      const glow = 1.1 + 2.4 * pull;
+      const glow = 2.2 + 3.3 * pull;
       for (const m of bowAnim.runeMats) {
         if (m) m.emissiveIntensity = glow;
       }
@@ -2045,6 +2076,9 @@ let cd = 0,
       hand.rotation.copy(SWORD_REST_ROT);
       shieldHand.position.copy(SHIELD_REST_POS);
       shieldHand.rotation.copy(SHIELD_REST_ROT);
+    } else if (w === "bow") {
+      hand.position.copy(BOW_REST_POS);
+      hand.rotation.copy(BOW_REST_ROT);
     } else {
       hand.position.copy(baseHandPos);
       hand.rotation.copy(baseHandRot);
@@ -2277,21 +2311,32 @@ let cd = 0,
         const p = bowCharge / defs.bow.chargeTime;
         setBowPull(p);
         setChargeRing(p, "#00f0ff");
-        // Draw animation: bring bow into shooting alignment
-        hand.position.set(baseHandPos.x - 0.04 * p, baseHandPos.y + 0.02 * p, baseHandPos.z + 0.04 * p);
-        hand.rotation.set(baseHandRot.x - 0.03 * p, baseHandRot.y - 0.02 * p, baseHandRot.z + 0.06 * p);
+        player?.avatar?.setCombatAction?.({ weapon: "bow", action: "draw", progress: p });
+        // Draw animation: smoothly bring bow into archer firing alignment
+        hand.position.set(
+          BOW_REST_POS.x - 0.05 * p,
+          BOW_REST_POS.y + 0.04 * p,
+          BOW_REST_POS.z + 0.03 * p
+        );
+        hand.rotation.set(
+          BOW_REST_ROT.x - 0.05 * p,
+          BOW_REST_ROT.y + 0.03 * p,
+          BOW_REST_ROT.z - 0.08 * p
+        );
       } else if (bowCharging) {
         bowCharging = false;
         setChargeRing(0);
+        player?.avatar?.setCombatAction?.(null);
         if (cd <= 0) fireBow();
         bowCharge = 0;
         setBowPull(0);
-        hand.position.copy(baseHandPos);
-        hand.rotation.copy(baseHandRot);
+        hand.position.copy(BOW_REST_POS);
+        hand.rotation.copy(BOW_REST_ROT);
       } else {
+        player?.avatar?.setCombatAction?.(null);
         setBowPull(0);
-        hand.position.copy(baseHandPos);
-        hand.rotation.copy(baseHandRot);
+        hand.position.copy(BOW_REST_POS);
+        hand.rotation.copy(BOW_REST_ROT);
       }
     }
 
